@@ -2,11 +2,11 @@
 
 ## Architecture
 A native Android mobile application built with Kotlin and Jetpack Compose adhering to Clean Architecture principles:
-- **Presentation Layer**: Jetpack Compose UI with dark aesthetic theme (`Volt #c6ff3d`, `Ember #ff5a36`, `Ink #0b0b0d`, `Panel #151519`), StateFlow ViewModels (`MealLogViewModel`, `WorkoutViewModel`, `StepTrackerViewModel`, `KinematicsViewerViewModel`), and 4 core navigation destinations:
+- **Presentation Layer**: Jetpack Compose UI with dark aesthetic theme (`Volt #c6ff3d`, `Ember #ff5a36`, `Ink #0b0b0d`, `Panel #151519`), StateFlow ViewModels (`MealLogViewModel`, `WorkoutViewModel`, `StepTrackerViewModel`, `WorkoutViewerViewModel`), and 4 core navigation destinations:
   1. Meal Input & Macro Summary (`MealInputScreen`)
   2. Dynamic Workout Plan (`WorkoutPlanScreen` with inline Skip actions, "AI Rebalanced" badge, coach explanation card, 1-tap reset)
-  3. 3D Workout Viewer (`WorkoutViewerScreen`)
-  4. Step Status & Alert (`StepStatusScreen`)
+  3. 3D Workout Viewer (`WorkoutViewerScreen` with 360° touch orbit drag, speed controls, camera presets)
+  4. Step Status & Alert (`StepStatusScreen` with circular step dial, 6 PM alert card, 3D walking avatar)
 - **3D Biomechanical Visual Engine**:
   - Native Kotlin Jetpack Compose 3D Canvas Mesh Engine: 4×4 affine matrix projection, forward kinematics solver (`solve(p, mv)`), depth-sorted polygon shading (Painter's algorithm), interactive touch drag orbiting, and 28 exercise routines ported from `moves.ts` and `Mannequin.tsx`.
   - Bundled offline WebView 3D fallback in `app/src/main/assets/3d_viewer/` for 1:1 parity with web assets.
@@ -53,9 +53,9 @@ A native Android mobile application built with Kotlin and Jetpack Compose adheri
 | F15 | Dynamic Workout Plan Screen | 7-day selector, dynamic adjustment banner, exercise list with modified sets/reps, form notes, and 3D preview | M4 | ORIGINAL_REQUEST §R3, Explorer 2 |
 | F16 | 3D Workout Viewer Screen | Fullscreen interactive 3D exercise viewer with camera presets, touch orbit, and playback controls | M4 | ORIGINAL_REQUEST §R1, Explorer 2 |
 | F17 | Step Status & Evening Alert Screen | Circular step dial, 6:00 PM deficit warning card, and animated 3D walking avatar | M4 | ORIGINAL_REQUEST §R3, Explorer 2 |
-| F18 | Full Application Build & Packaging | Clean debug APK build on Drive D: verifying end-to-end integration | M4 | ORIGINAL_REQUEST §R1, R4 |
-| F19 | E2E Test Suite Pass (Tiers 1-4) | 100% pass rate on opaque-box requirement-driven E2E test suite published in TEST_READY.md | M5 | Acceptance Criteria |
-| F20 | Adversarial Coverage Hardening (Tier 5) | White-box adversarial testing, edge-case hardening, and zero remaining gaps verification | M5 | Dual Track Specification |
+| F18 | Full Application Build & Packaging | Clean debug APK build on Drive D: verifying end-to-end integration (`app-debug.apk` 19.5 MB) | M4 | ORIGINAL_REQUEST §R1, R4 |
+| F19 | E2E Test Suite Pass (Tiers 1-4) | 100% pass rate on opaque-box requirement-driven E2E test suite published in TEST_READY.md (61 tests) | M5 | Acceptance Criteria |
+| F20 | Adversarial Coverage Hardening (Tier 5) | White-box adversarial testing, edge-case hardening, and zero remaining gaps verification (59 adversarial tests) | M5 | Dual Track Specification |
 | F21 | Offline Dynamic Exercise Rebalancer | Deterministic synergistic redistribution matrix across all 6 PPL days with CompensatoryEngine precedence | M3 | ORIGINAL_REQUEST §R-REBALANCE-1,3,4,6 |
 | F22 | Gemini AI Workout Rebalancer | Google Gemini API integration for natural language skipped/unavailable exercise volume redistribution | M3 | ORIGINAL_REQUEST §R-REBALANCE-2 |
 | F23 | Rebalanced Workout UI & Coach Card | Compose UI components: "AI Rebalanced" badge, expandable coach rationale card, 1-tap reset action | M4 | ORIGINAL_REQUEST §R-REBALANCE-5 |
@@ -64,157 +64,10 @@ A native Android mobile application built with Kotlin and Jetpack Compose adheri
 | # | Name | Scope | Dependencies | Status |
 |---|------|-------|-------------|--------|
 | M1 | Core Domain & Build Infra | F1, F2, F3, F4, F5: Gradle project on Drive D:, domain models, V-Taper PPL repository, CompensatoryEngine, StepAlertEvaluator, and M1 unit tests | none | DONE |
-| M2 | AI Nutrition & Macro Logging | F6, F7, F8: NutritionParser, FixtureNutritionParser, GeminiNutritionParser, DailyMacroSummary repository, and M2 unit tests | M1 | IN_PROGRESS |
-| M3 | 3D Biomechanical Engine & Dynamic Exercise Rebalancer | F9, F10, F11, F12, F21, F22: Kinematics solver, Native Compose 3D Canvas mesh engine, assets bundling, 3D barbell hero, 3D macro charts, OfflineWorkoutRebalancer, and GeminiWorkoutRebalancer | M1 | PLANNED |
-| M4 | Jetpack Compose UI & Screens | F13, F14, F15, F16, F17, F18, F23: Design system, 4 core screens with AI Rebalanced badge & coach card, ViewModels, navigation, and APK assembly | M2, M3 | PLANNED |
-| M5 | Final E2E Verification & Hardening | F19, F20: 100% E2E test suite pass (Tiers 1-4) + Tier 5 adversarial coverage hardening | M4, TEST_READY | PLANNED |
-
-## Interface Contracts
-
-### 1. `NutritionParser` Contract
-```kotlin
-package com.hostelgains.domain.nutrition
-
-interface NutritionParser {
-    suspend fun parseMeal(rawDescription: String): Result<MealNutrition>
-}
-
-data class FoodItemNutrition(
-    val name: String,
-    val quantityDescription: String,
-    val proteinGrams: Float,
-    val carbsGrams: Float,
-    val fatsGrams: Float,
-    val calories: Int
-)
-
-data class MealNutrition(
-    val rawQuery: String,
-    val mealName: String,
-    val proteinGrams: Float,
-    val carbsGrams: Float,
-    val fatsGrams: Float,
-    val calories: Int,
-    val items: List<FoodItemNutrition>,
-    val isHighCarb: Boolean,
-    val isLowProtein: Boolean,
-    val dietaryNotes: String = ""
-)
-```
-
-### 2. `CompensatoryEngine` Contract
-```kotlin
-package com.hostelgains.domain.workout
-
-interface CompensatoryEngine {
-    fun evaluateWorkout(
-        basePlan: WorkoutDayPlan,
-        dailyMacros: DailyMacroSummary
-    ): AdjustedWorkoutPlan
-}
-
-data class AdjustedExercise(
-    val baseExercise: Exercise,
-    val effectiveSets: Int,
-    val effectiveReps: String,
-    val isCarbBonusApplied: Boolean,
-    val isProteinCapApplied: Boolean,
-    val adjustmentNotes: List<String>
-)
-
-data class AdjustedWorkoutPlan(
-    val dayNumber: Int,
-    val dayName: String,
-    val focusArea: String,
-    val exercises: List<AdjustedExercise>,
-    val activeTriggers: List<String>
-)
-```
-
-### 3. `WorkoutRebalancer` Contract
-```kotlin
-package com.hostelgains.domain.rebalance
-
-import com.hostelgains.domain.model.WorkoutDayPlan
-import com.hostelgains.domain.nutrition.DailyMacroSummary
-import com.hostelgains.domain.workout.AdjustedWorkoutPlan
-
-data class ExerciseCompensation(
-    val exerciseId: String,
-    val extraSets: Int,
-    val repAdjustment: String,
-    val rationale: String
-)
-
-data class RebalanceResult(
-    val skippedExerciseId: String,
-    val reason: String,
-    val compensations: List<ExerciseCompensation>,
-    val coachMessage: String,
-    val isAiGenerated: Boolean
-)
-
-interface WorkoutRebalancer {
-    suspend fun rebalanceWorkout(
-        dayPlan: WorkoutDayPlan,
-        skippedExerciseId: String,
-        userPrompt: String = ""
-    ): Result<RebalanceResult>
-
-    fun harmonizeWithMacros(
-        rebalancedPlan: WorkoutDayPlan,
-        rebalanceResult: RebalanceResult?,
-        dailyMacros: DailyMacroSummary
-    ): AdjustedWorkoutPlan
-}
-```
-
-### 4. `StepAlertEvaluator` Contract
-```kotlin
-package com.hostelgains.domain.steps
-
-interface StepAlertEvaluator {
-    fun evaluate(currentSteps: Int, hourOfDay: Int, minuteOfHour: Int): StepAlertResult
-}
-
-data class StepAlertResult(
-    val isAlertTriggered: Boolean,
-    val currentSteps: Int,
-    val targetSteps: Int = 10000,
-    val alertTitle: String?,
-    val alertMessage: String?
-)
-```
-
-### 5. 3D Kinematics & Rendering Contract
-```kotlin
-package com.hostelgains.ui.kinematics
-
-data class JointPose(
-    val hip: Float,
-    val knee: Float,
-    val torso: Float,
-    val shoulder: Float,
-    val elbow: Float,
-    val abduction: Float,
-    val dy: Float,
-    val foot: Float
-)
-
-data class ExerciseMove(
-    val id: String,
-    val name: String,
-    val targetMuscles: List<String>,
-    val primaryPose: JointPose,
-    val secondaryPose: JointPose,
-    val apparatus: String,
-    val formCues: List<String>
-)
-
-interface KinematicsSolver {
-    fun solve(pose: JointPose, moveId: String): SolvedSkeleton
-}
-```
+| M2 | AI Nutrition & Macro Logging | F6, F7, F8: NutritionParser, FixtureNutritionParser, GeminiNutritionParser, DailyMacroSummary repository, and M2 unit tests | M1 | DONE |
+| M3 | 3D Biomechanical Engine & Dynamic Exercise Rebalancer | F9, F10, F11, F12, F21, F22: Kinematics solver, Native Compose 3D Canvas mesh engine, assets bundling, 3D barbell hero, 3D macro charts, OfflineWorkoutRebalancer, and GeminiWorkoutRebalancer | M1 | DONE |
+| M4 | Jetpack Compose UI & Screens | F13, F14, F15, F16, F17, F18, F23: Design system, 4 core screens with AI Rebalanced badge & coach card, ViewModels, navigation, and APK assembly (`app-debug.apk` 19.5 MB) | M2, M3 | DONE |
+| M5 | Final E2E Verification & Hardening | F19, F20: 100% E2E test suite pass (Tiers 1-4) + Tier 5 adversarial coverage hardening (264/264 tests passing) | M4, TEST_READY | DONE |
 
 ## Code Layout
 ```
@@ -234,7 +87,7 @@ D:\projects\hostel_gains\
     │   │   ├── AndroidManifest.xml
     │   │   ├── assets\
     │   │   │   └── 3d_viewer\
-    │   │   ├── java\ (or kotlin\)
+    │   │   ├── java\
     │   │   │   └── com\hostelgains\
     │   │   │       ├── domain\
     │   │   │       │   ├── model\
@@ -249,13 +102,14 @@ D:\projects\hostel_gains\
     │   │   │           ├── theme\
     │   │   │           ├── components\
     │   │   │           ├── kinematics\
+    │   │   │           ├── viewmodel\
     │   │   │           └── screens\
     │   │   └── res\
     │   │       └── values\
     │   └── test\
     │       └── java\com\hostelgains\
     │           ├── domain\
-    │           │   ├── rebalance\
-    │           │   └── ...
-    │           └── data\
+    │           ├── data\
+    │           ├── ui\
+    │           └── e2e\
 ```

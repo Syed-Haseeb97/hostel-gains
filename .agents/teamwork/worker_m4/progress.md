@@ -1,6 +1,6 @@
 # Progress — worker_m4 (M4: Jetpack Compose UI & Screens)
 
-Last visited: 2026-11-10T10:41:30Z
+Last visited: 2026-11-10T11:42:00Z
 
 ## Status
 - [x] Investigate existing codebase, dependencies, domain models, and UI/kinematics structure
@@ -8,7 +8,7 @@ Last visited: 2026-11-10T10:41:30Z
 - [x] Implement ViewModels: MealLogViewModel, WorkoutViewModel, StepTrackerViewModel, WorkoutViewerViewModel
 - [x] Implement UI Components (3D macro charts, badges, coach card, dialogs, bottom bar, 3D mannequin view, walking avatar, hero barbell)
 - [x] Implement 4 Core Screens:
-  - [x] MealInputScreen
+  - [x] MealInputScreen (with 3D isometric macro chart, presets, active triggers)
   - [x] WorkoutPlanScreen (with inline Skip, AI Rebalanced badge & coach card)
   - [x] WorkoutViewerScreen (with 3D Canvas, camera presets, speed, orbit controls)
   - [x] StepStatusScreen (with circular progress step dial, 6 PM alert card, 3D walking avatar)
@@ -19,5 +19,6 @@ Last visited: 2026-11-10T10:41:30Z
   - [x] StepTrackerViewModelTest
   - [x] WorkoutViewerViewModelTest
   - [x] HostelGainsThemeTest
-- [/] Assemble debug APK on Drive D: and run unit tests (In Progress)
-- [ ] Write handoff report and notify parent
+- [x] Assemble debug APK on Drive D: (`app/build/outputs/apk/debug/app-debug.apk` - 19.5 MB)
+- [x] Run full unit test suite on Drive D: (264 tests completed, 0 failures, 100% pass rate)
+- [x] Write handoff report and notify parent
