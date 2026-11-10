@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="volt">#C6FF3D</color>
+    <color name="ember">#FF5A36</color>
+    <color name="ink">#0B0B0D</color>
+    <color name="panel">#151519</color>
+    <color name="surface">#1E1E24</color>
+    <color name="muted">#8E8E93</color>
+</resources>

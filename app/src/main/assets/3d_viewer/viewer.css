@@ -1,0 +1,170 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background-color: #0b0b0d;
+  color: #ffffff;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  overflow-x: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.viewer-card {
+  border-radius: 16px;
+  background: linear-gradient(180deg, #151519 0%, #0b0b0d 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 16px;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.subtitle {
+  color: #ff5a36;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.2em;
+}
+
+.title {
+  color: #ffffff;
+  font-size: 24px;
+  font-weight: 800;
+  text-transform: uppercase;
+  line-height: 1.1;
+  margin-top: 2px;
+}
+
+.viewport {
+  position: relative;
+  height: 380px;
+  perspective: 1100px;
+  perspective-origin: 50% 40%;
+  overflow: hidden;
+  background: radial-gradient(circle at center 70%, rgba(198, 255, 61, 0.08) 0%, transparent 70%);
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  cursor: grab;
+  touch-action: none;
+}
+
+.viewport:active {
+  cursor: grabbing;
+}
+
+.world-container {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform-origin: 50% 95%;
+}
+
+.world {
+  position: absolute;
+  left: 50%;
+  top: 360px;
+  width: 0;
+  height: 0;
+  transform-style: preserve-3d;
+}
+
+.floor {
+  position: absolute;
+  left: -260px;
+  top: -260px;
+  width: 520px;
+  height: 520px;
+  transform: rotateX(90deg);
+  background:
+    repeating-linear-gradient(0deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, rgba(255, 255, 255, .05) 0 1px, transparent 1px 40px),
+    radial-gradient(circle, rgba(198, 255, 61, .15) 0%, transparent 65%);
+}
+
+.box {
+  position: absolute;
+  transform-style: preserve-3d;
+}
+
+.face {
+  position: absolute;
+}
+
+.controls {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.btn {
+  border-radius: 9999px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 14px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: transparent;
+  color: #d4d4d8;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn:hover, .btn:active {
+  border-color: rgba(255, 255, 255, 0.4);
+}
+
+.btn.active {
+  background: #c6ff3d;
+  color: #0b0b0d;
+  border-color: #c6ff3d;
+}
+
+.info-box {
+  background: #151519;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.info-label {
+  color: #71717a;
+  font-weight: 600;
+}
+
+.drag-hint {
+  position: absolute;
+  bottom: 8px;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  color: #71717a;
+  pointer-events: none;
+  text-transform: uppercase;
+}

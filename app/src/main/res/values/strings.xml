@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">HostelGains</string>
+    <string name="tab_meals">Mess Meals</string>
+    <string name="tab_workout">V-Taper Plan</string>
+    <string name="tab_viewer">3D Viewer</string>
+    <string name="tab_steps">Step Tracker</string>
+</resources>
