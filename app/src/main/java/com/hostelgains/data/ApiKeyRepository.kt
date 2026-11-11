@@ -21,6 +21,9 @@ class ApiKeyRepository(context: Context) {
         private const val KEY_GEMINI_API_KEY = "gemini_api_key"
     }
 
+    var isHardwareEncrypted: Boolean = true
+        private set
+
     private val prefs: SharedPreferences = try {
         val masterKey = MasterKey.Builder(context)
             .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
@@ -33,6 +36,7 @@ class ApiKeyRepository(context: Context) {
             EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
         )
     } catch (e: Exception) {
+        isHardwareEncrypted = false
         context.getSharedPreferences(PREFS_FILE + "_fallback", Context.MODE_PRIVATE)
     }
 

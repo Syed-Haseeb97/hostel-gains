@@ -47,10 +47,8 @@ class GeminiApiKeyValidator(
             return@withContext KeyValidationResult.Invalid("API key cannot be empty.")
         }
 
-        val url = if (baseUrl.contains("?")) "$baseUrl&key=$trimmed" else "$baseUrl?key=$trimmed"
-
         val request = Request.Builder()
-            .url(url)
+            .url(baseUrl)
             .addHeader("x-goog-api-key", trimmed)
             .get()
             .build()

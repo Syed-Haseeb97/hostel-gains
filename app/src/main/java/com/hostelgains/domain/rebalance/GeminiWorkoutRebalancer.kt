@@ -75,11 +75,10 @@ class GeminiWorkoutRebalancer(
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = payload.toRequestBody(mediaType)
 
-        val url = if (baseUrl.contains("?")) "$baseUrl&key=$key" else "$baseUrl?key=$key"
-
         val request = Request.Builder()
-            .url(url)
+            .url(baseUrl)
             .addHeader("Content-Type", "application/json")
+            .addHeader("x-goog-api-key", key)
             .post(requestBody)
             .build()
 
