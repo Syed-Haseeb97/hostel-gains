@@ -135,3 +135,45 @@ Please adjust team pacing and dispatch workers immediately to deliver the core a
 ## Follow-up — 2026-11-10T11:35:00Z
 
 where are we now? how much more time will it take? kill the subagents that are no longer needed
+
+## Follow-up — 2026-11-10T12:05:44Z
+
+Feature Request: AI Studio API Key Onboarding & "Premium AI" Unlock Flow
+
+Please implement the following new feature into the Hostel-Gains Dynamic Optimizer app:
+
+### Feature: API Key Onboarding Screen & Premium AI Feature Gate
+
+#### R-APIKEY-1: First-Launch API Key Onboarding Screen (Jetpack Compose)
+- On first app launch (or when no key is stored), show a dedicated onboarding/setup screen before the main app.
+- The screen should:
+  - Explain that the app works offline by default using the built-in Indian mess food database.
+  - Invite the user to paste their personal Google AI Studio API key to unlock "Premium AI" features.
+  - Include a tappable hyperlink: https://aistudio.google.com/app/apikey (opens in browser) so the user can easily get their free key.
+  - Provide a visible password-style TextField (with show/hide toggle) to paste the key.
+  - Include a "Unlock Premium AI" CTA button that validates the key format (should start with "AIza" and be non-empty) before saving.
+  - Include a "Skip for now — use Offline Mode" button to dismiss and use the app without AI features.
+
+#### R-APIKEY-2: Secure Local Storage of the API Key
+- Store the API key using Android's EncryptedSharedPreferences (Jetpack Security library) so it is encrypted at rest on the device.
+- Never log, transmit, or expose the key anywhere except in the Authorization header of outgoing Gemini REST API calls.
+- Provide a "Clear API Key / Reset to Offline Mode" option in a Settings screen or accessible from the app menu.
+
+#### R-APIKEY-3: Premium AI Feature Gate in UI
+- Once a key is saved, the app should show a visible "Premium AI Active ✦" badge or indicator on the home/meal and workout screens.
+- When no key is set, the AI-dependent buttons (e.g., "Analyze Meal with AI", "AI Workout Rebalance") should show a subtle "Offline Mode" label and still work via the offline fallback engines — not be disabled or hidden.
+- When a key is set, those same buttons should show "AI Powered ✦" and route through the live Gemini API parsers.
+
+#### R-APIKEY-4: Pass Key to Gemini Parsers at Runtime
+- Update `GeminiNutritionParser` and `GeminiWorkoutRebalancer` to accept the key from EncryptedSharedPreferences at runtime (via the ViewModel or a KeyRepository) instead of only from `System.getenv("GEMINI_API_KEY")`.
+- Maintain the existing graceful fallback: if the key is missing or the API call fails, automatically fall through to the offline engines.
+
+#### R-APIKEY-5: Automated Tests
+- Unit tests for `ApiKeyRepository` covering key save, retrieval, clear, and format validation.
+- UI state tests verifying that the Premium AI badge is shown/hidden based on key presence.
+- Tests verifying that `GeminiNutritionParser` and `GeminiWorkoutRebalancer` correctly receive the runtime-injected key.
+
+#### R-APIKEY-6: Storage Constraint
+- All code, Gradle builds, and caches must continue to reside strictly on Drive D: (`D:\projects\hostel_gains` and `D:\.gradle`). Zero writes to Drive C:.
+
+Please implement and verify this feature, then rebuild the debug APK.

@@ -94,6 +94,9 @@ dependencies {
     // Networking / AI API
     implementation("com.squareup.okhttp3:okhttp:5.3.0")
 
+    // Encrypted key storage
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
     // Testing
     testImplementation("junit:junit:4.13.2")
 }

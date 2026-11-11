@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    
+    <!-- Base dark background -->
+    <path
+        android:fillColor="#0B0B0D"
+        android:pathData="M0,0h108v108h-108z" />
+
+    <!-- Subtle elevated tech plate in center -->
+    <path
+        android:fillColor="#131317"
+        android:pathData="M54,14 L88,32 L88,76 L54,94 L20,76 L20,32 Z" />
+
+    <!-- Ambient glow circle under logo -->
+    <path
+        android:fillColor="#1B280E"
+        android:pathData="M54,26 A28,28 0 1,0 54,82 A28,28 0 1,0 54,26" />
+
+    <!-- Radial accent radar ring -->
+    <path
+        android:strokeColor="#2A3C16"
+        android:strokeWidth="1.2"
+        android:pathData="M54,22 A32,32 0 1,0 54,86 A32,32 0 1,0 54,22" />
+
+    <!-- Outer precision hexagon border -->
+    <path
+        android:strokeColor="#C6FF3D"
+        android:strokeAlpha="0.18"
+        android:strokeWidth="1"
+        android:pathData="M54,14 L88,32 L88,76 L54,94 L20,76 L20,32 Z" />
+
+    <!-- Corner tech tick marks -->
+    <path
+        android:strokeColor="#FF5A36"
+        android:strokeAlpha="0.35"
+        android:strokeWidth="1.5"
+        android:pathData="M54,10 L54,14 M54,94 L54,98 M16,30 L20,32 M88,32 L92,30 M16,78 L20,76 M88,76 L92,78" />
+
+</vector>

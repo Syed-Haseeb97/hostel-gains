@@ -48,8 +48,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hostelgains.domain.nutrition.MealNutrition
+import com.hostelgains.ui.components.AiModeBadge
 import com.hostelgains.ui.components.HeroBarbell3D
 import com.hostelgains.ui.components.HighCarbBadge
+import com.hostelgains.ui.components.HostelGainsLogoBadge
 import com.hostelgains.ui.components.Macro3DChart
 import com.hostelgains.ui.components.ProteinDeficitBadge
 import com.hostelgains.ui.theme.BorderStroke
@@ -76,7 +78,9 @@ val QUICK_MEAL_PRESETS = listOf(
 @Composable
 fun MealInputScreen(
     viewModel: MealLogViewModel,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPremiumAi: Boolean = false,
+    onUnlockAiClicked: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
 
@@ -89,29 +93,42 @@ fun MealInputScreen(
     ) {
         item {
             Spacer(modifier = Modifier.height(8.dp))
+            // AI Mode Badge
+            AiModeBadge(
+                isPremium = isPremiumAi,
+                modifier = Modifier.clickable { if (!isPremiumAi) onUnlockAiClicked() }
+            )
+            Spacer(modifier = Modifier.height(8.dp))
             // Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = "MESS MEALS",
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "AI Macronutrient Calculation & Intake Tracker",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    HostelGainsLogoBadge(size = 46.dp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "MESS MEALS",
+                            color = Color.White,
+                            fontSize = 24.sp,
+                            fontWeight = FontWeight.Black,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = "AI Macronutrient Calculation & Intake Tracker",
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
                 Box(
                     modifier = Modifier
-                        .size(52.dp)
+                        .size(46.dp)
                         .clip(CircleShape)
                         .background(Panel)
                         .border(1.dp, BorderStroke, CircleShape)

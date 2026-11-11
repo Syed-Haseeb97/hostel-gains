@@ -51,8 +51,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hostelgains.domain.workout.AdjustedExercise
+import com.hostelgains.ui.components.AiModeBadge
 import com.hostelgains.ui.components.ExpandableCoachCard
 import com.hostelgains.ui.components.HighCarbBadge
+import com.hostelgains.ui.components.HostelGainsLogoBadge
 import com.hostelgains.ui.components.Mannequin3DView
 import com.hostelgains.ui.components.ProteinDeficitBadge
 import com.hostelgains.ui.theme.BorderStroke
@@ -73,7 +75,9 @@ val PPL_DAYS_ABBR = listOf("Day 1\nPull A", "Day 2\nPush A", "Day 3\nLegs", "Day
 fun WorkoutPlanScreen(
     viewModel: WorkoutViewModel,
     onNavigateToViewer: (String) -> Unit = {},
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isPremiumAi: Boolean = false,
+    onUnlockAiClicked: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
     var promptInput by remember { mutableStateOf("") }
@@ -86,6 +90,12 @@ fun WorkoutPlanScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
+            Spacer(modifier = Modifier.height(8.dp))
+            // AI Mode Badge
+            AiModeBadge(
+                isPremium = isPremiumAi,
+                modifier = Modifier.clickable { if (!isPremiumAi) onUnlockAiClicked() }
+            )
             Spacer(modifier = Modifier.height(8.dp))
             // Header
             Row(
@@ -107,21 +117,7 @@ fun WorkoutPlanScreen(
                         fontSize = 12.sp
                     )
                 }
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Panel)
-                        .border(1.dp, BorderStroke, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.FitnessCenter,
-                        contentDescription = null,
-                        tint = Volt,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
+                HostelGainsLogoBadge(size = 46.dp)
             }
         }
 
