@@ -1,6 +1,10 @@
 package com.hostelgains.ui
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -27,17 +31,20 @@ import com.hostelgains.ui.screens.MealInputScreen
 import com.hostelgains.ui.screens.StepStatusScreen
 import com.hostelgains.ui.screens.WorkoutPlanScreen
 import com.hostelgains.ui.screens.WorkoutViewerScreen
-import com.hostelgains.ui.theme.Ink
+import com.hostelgains.ui.theme.Canvas0
 import com.hostelgains.ui.viewmodel.ApiKeyViewModel
 import com.hostelgains.ui.viewmodel.MealLogViewModel
 import com.hostelgains.ui.viewmodel.StepTrackerViewModel
 import com.hostelgains.ui.viewmodel.UpdateViewModel
 import com.hostelgains.ui.viewmodel.WorkoutViewModel
+import com.hostelgains.ui.screens.PhysiqueSelectionScreen
+import com.hostelgains.ui.viewmodel.PhysiqueProfileViewModel
 import com.hostelgains.ui.viewmodel.WorkoutViewerViewModel
 
 @Composable
 fun HostelGainsApp(
     apiKeyViewModel: ApiKeyViewModel,
+    physiqueProfileViewModel: PhysiqueProfileViewModel? = null,
     initialTab: NavigationTab = NavigationTab.MEALS,
     updateViewModel: UpdateViewModel = viewModel(),
     mealLogViewModel: MealLogViewModel = viewModel(),
@@ -48,17 +55,29 @@ fun HostelGainsApp(
     val context = LocalContext.current
     val apiKeyUiState by apiKeyViewModel.uiState.collectAsState()
     val updateUiState by updateViewModel.uiState.collectAsState()
+    val profileUiState = physiqueProfileViewModel?.uiState?.collectAsState()?.value
 
     // ── Check in real time on every launch for latest available version ──────
     LaunchedEffect(Unit) {
         updateViewModel.checkForUpdatesOnLaunch(context.applicationContext)
     }
 
-    // ── Onboarding gate ──────────────────────────────────────────────────────
+    // ── 1. API Key Onboarding gate ───────────────────────────────────────────
     if (apiKeyUiState.showOnboarding) {
         ApiKeyOnboardingScreen(
             viewModel = apiKeyViewModel,
             onDismiss = { /* state drives navigation */ }
+        )
+        return
+    }
+
+    // ── 2. Physique Build & Anthropometry Onboarding gate ────────────────────
+    if (physiqueProfileViewModel != null && profileUiState != null && !profileUiState.isSaved) {
+        PhysiqueSelectionScreen(
+            viewModel = physiqueProfileViewModel,
+            onConfirmed = { selectedBuild ->
+                workoutViewModel.selectPhysiqueBuild(selectedBuild)
+            }
         )
         return
     }
@@ -71,8 +90,15 @@ fun HostelGainsApp(
         currentTab = initialTab
     }
 
+    // System back returns to the first tab before leaving the app.
+    BackHandler(enabled = currentTab != NavigationTab.MEALS) {
+        currentTab = NavigationTab.MEALS
+    }
+
     Scaffold(
-        containerColor = Ink,
+        containerColor = Canvas0,
+        // Each screen handles the status bar itself so content can scroll edge-to-edge.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = {
             HostelBottomNavigation(
                 currentTab = currentTab,
@@ -92,7 +118,8 @@ fun HostelGainsApp(
             )
 
             Box(modifier = Modifier.weight(1f)) {
-                when (currentTab) {
+                Crossfade(targetState = currentTab, animationSpec = tween(220), label = "tab") { tab ->
+                when (tab) {
                     NavigationTab.MEALS -> {
                         MealInputScreen(
                             viewModel = mealLogViewModel,
@@ -103,10 +130,11 @@ fun HostelGainsApp(
                     NavigationTab.WORKOUT -> {
                         WorkoutPlanScreen(
                             viewModel = workoutViewModel,
+                            profileViewModel = physiqueProfileViewModel,
                             isPremiumAi = liveKey != null,
                             onUnlockAiClicked = { apiKeyViewModel.showOnboardingAgain() },
-                            onNavigateToViewer = { exerciseName ->
-                                workoutViewerViewModel.selectExercise(exerciseName)
+                            onNavigateToViewer = { exerciseId ->
+                                workoutViewerViewModel.selectExercise(exerciseId)
                                 currentTab = NavigationTab.VIEWER_3D
                             }
                         )
@@ -117,6 +145,7 @@ fun HostelGainsApp(
                     NavigationTab.STEPS -> {
                         StepStatusScreen(viewModel = stepTrackerViewModel)
                     }
+                }
                 }
             }
         }

@@ -18,8 +18,8 @@ class HostelGainsThemeTest {
 
     @Test
     fun testTypographyTokens_configuredWithFitnessHierarchy() {
-        assertEquals(44f, Typography.displayLarge.fontSize.value)
-        assertEquals(32f, Typography.displayMedium.fontSize.value)
-        assertEquals(24f, Typography.headlineLarge.fontSize.value)
+        assertEquals(48f, Typography.displayLarge.fontSize.value)
+        assertEquals(36f, Typography.displayMedium.fontSize.value)
+        assertEquals(28f, Typography.headlineLarge.fontSize.value)
     }
 }

@@ -46,9 +46,19 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 3. Build repository with application Context (never leaks Activity)
+        // 3. Build repositories with application Context (never leaks Activity)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
         apiKeyViewModel = ApiKeyViewModel(apiKeyRepository)
+
+        val profileRepository = com.hostelgains.data.profile.UserProfileRepository(applicationContext)
+        val physiqueProfileViewModel = com.hostelgains.ui.viewmodel.PhysiqueProfileViewModel(
+            profileRepository = profileRepository,
+            apiKeyRepository = apiKeyRepository
+        )
+        val workoutViewModel = com.hostelgains.ui.viewmodel.WorkoutViewModel(
+            dynamicWorkoutRepository = com.hostelgains.domain.workout.DynamicWorkoutRepository(),
+            profileRepository = profileRepository
+        )
 
         // 4. Handle incoming notification target tab
         parseTargetTab(intent)
@@ -57,6 +67,8 @@ class MainActivity : ComponentActivity() {
             HostelGainsTheme {
                 HostelGainsApp(
                     apiKeyViewModel = apiKeyViewModel,
+                    physiqueProfileViewModel = physiqueProfileViewModel,
+                    workoutViewModel = workoutViewModel,
                     initialTab = selectedTab
                 )
             }

@@ -41,7 +41,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.hostelgains.data.update.DownloadStatus
-import com.hostelgains.ui.theme.BorderStroke
 import com.hostelgains.ui.theme.Ember
 import com.hostelgains.ui.theme.Ink
 import com.hostelgains.ui.theme.Muted

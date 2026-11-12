@@ -1,58 +1,69 @@
 package com.hostelgains.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.DirectionsWalk
+import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.LocalFireDepartment
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.NotificationsActive
+import androidx.compose.material.icons.filled.Place
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.hostelgains.ui.components.WalkingAvatar3D
-import com.hostelgains.ui.theme.BorderStroke
-import com.hostelgains.ui.theme.CyanAccent
-import com.hostelgains.ui.theme.Ember
-import com.hostelgains.ui.theme.Ink
-import com.hostelgains.ui.theme.Muted
-import com.hostelgains.ui.theme.Panel
-import com.hostelgains.ui.theme.Surface
-import com.hostelgains.ui.theme.TextPrimary
-import com.hostelgains.ui.theme.TextSecondary
-import com.hostelgains.ui.theme.Volt
+import com.hostelgains.ui.components.HgCard
+import com.hostelgains.ui.components.HgPrimaryButton
+import com.hostelgains.ui.components.MetricTile
+import com.hostelgains.ui.components.ProgressRing
+import com.hostelgains.ui.components.ScreenHeader
+import com.hostelgains.ui.components.SectionLabel
+import com.hostelgains.ui.components.SegmentedControl
+import com.hostelgains.ui.components.StatusPill
+import com.hostelgains.ui.theme.Canvas0
+import com.hostelgains.ui.theme.Danger
+import com.hostelgains.ui.theme.FatColor
+import com.hostelgains.ui.theme.Ignite
+import com.hostelgains.ui.theme.Success
+import com.hostelgains.ui.theme.Surface2
+import com.hostelgains.ui.theme.TextHigh
+import com.hostelgains.ui.theme.TextMid
+import com.hostelgains.ui.theme.Warning
+import com.hostelgains.ui.three.Exercise3DView
 import com.hostelgains.ui.viewmodel.StepTrackerViewModel
+
+private val STEP_INCREMENTS = listOf(500, 1000, 2500, 5000)
+
+/** Preset check times for the 6 PM deficit alert, plus "Now". */
+private val CHECK_TIMES = listOf(14 to 0, 17 to 59, 18 to 0)
 
 @Composable
 fun StepStatusScreen(
@@ -60,395 +71,173 @@ fun StepStatusScreen(
     modifier: Modifier = Modifier
 ) {
     val state by viewModel.uiState.collectAsState()
-    val progressPct = ((state.currentSteps.toFloat() / state.targetSteps.toFloat()) * 100f).coerceIn(0f, 100f).toInt()
+    val progress = (state.currentSteps / state.targetSteps.toFloat()).coerceIn(0f, 1f)
+    val goalHit = state.currentSteps >= state.targetSteps
+    val ringColor = when {
+        goalHit -> Success
+        state.currentSteps >= 5000 -> Ignite
+        else -> Warning
+    }
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Ink)
-            .padding(horizontal = 16.dp),
+            .background(Canvas0),
+        contentPadding = PaddingValues(top = top + 12.dp, bottom = 24.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text(
-                        text = "STEP TRACKER",
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Daily NEAT & Evening Recomposition Sync",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clip(CircleShape)
-                        .background(Panel)
-                        .border(1.dp, BorderStroke, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.DirectionsWalk,
-                        contentDescription = null,
-                        tint = Volt,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
+            ScreenHeader(eyebrow = "Daily movement", title = "Move", modifier = Modifier.padding(horizontal = 4.dp))
         }
 
-        // 6:00 PM Step Deficit Warning Card (Prominently displayed when triggered)
+        // ── Progress hero ─────────────────────────────────────────────────────
         item {
-            if (state.alertResult.isAlertTriggered) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(18.dp))
-                        .background(Ember.copy(alpha = 0.15f))
-                        .border(1.5.dp, Ember, RoundedCornerShape(18.dp))
-                        .padding(16.dp)
-                ) {
-                    Column {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Warning,
-                                contentDescription = "Alert",
-                                tint = Ember,
-                                modifier = Modifier.size(22.dp)
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = state.alertResult.alertTitle ?: "STEP DEFICIT ALERT",
-                                color = Ember,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Black,
-                                letterSpacing = 0.5.sp
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Text(
-                            text = state.alertResult.alertMessage ?: "",
-                            color = Color.White,
-                            fontSize = 13.sp,
-                            lineHeight = 18.sp,
-                            fontWeight = FontWeight.Medium
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Button(
-                            onClick = { viewModel.addSteps(3000) },
-                            shape = RoundedCornerShape(10.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Ember,
-                                contentColor = Color.White
-                            ),
-                            modifier = Modifier.height(36.dp)
-                        ) {
-                            Text(
-                                text = "LOG 3,000 POST-DINNER STEPS",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // Circular Step Dial & Animated 3D Walking Avatar Card
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(Panel)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(20.dp))
-                    .padding(20.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = "DAILY ACTIVITY TARGET",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "Target: 10,000 steps",
-                            color = Volt,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    // Circular Progress Dial with embedded 3D Avatar
-                    Box(
-                        modifier = Modifier.size(240.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Compose Canvas Circular Progress Arc
-                        Canvas(modifier = Modifier.fillMaxSize()) {
-                            val strokeWidthPx = 14.dp.toPx()
-                            val radius = (size.minDimension - strokeWidthPx) / 2f
-                            val center = size / 2f
-
-                            // Track circle
-                            drawCircle(
-                                color = Surface,
-                                radius = radius,
-                                style = Stroke(width = strokeWidthPx)
-                            )
-
-                            // Animated Sweep Arc
-                            val sweepAngle = (progressPct / 100f) * 360f
-                            drawArc(
-                                color = if (state.currentSteps >= 5000) Volt else Ember,
-                                startAngle = -90f,
-                                sweepAngle = sweepAngle,
-                                useCenter = false,
-                                style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
-                            )
-                        }
-
-                        // Embedded Animated 3D Walking Avatar in the Center
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center
-                        ) {
-                            Box(modifier = Modifier.size(80.dp, 80.dp)) {
-                                WalkingAvatar3D(
-                                    modifier = Modifier.fillMaxSize(),
-                                    isWalking = state.currentSteps > 0,
-                                    cadenceSpeed = 1.2f
-                                )
-                            }
-                            Text(
-                                text = "${state.currentSteps}",
-                                color = Color.White,
-                                fontSize = 32.sp,
-                                fontWeight = FontWeight.Black,
-                                lineHeight = 34.sp
-                            )
-                            Text(
-                                text = "STEPS ($progressPct%)",
-                                color = if (state.currentSteps >= 5000) Volt else Ember,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 1.sp
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // 3 Metric Counters: Distance, Calories, Active Time
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceAround
-                    ) {
-                        StepMetricItem(
-                            label = "DISTANCE",
-                            value = "${state.distanceKm} km",
-                            color = Volt
-                        )
-                        StepMetricItem(
-                            label = "ENERGY",
-                            value = "${state.caloriesBurned} kcal",
-                            color = Ember
-                        )
-                        StepMetricItem(
-                            label = "ACTIVE TIME",
-                            value = "${state.activeMinutes} min",
-                            color = CyanAccent
-                        )
-                    }
-                }
-            }
-        }
-
-        // Time Simulation & Verification Controls
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Panel)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(16.dp))
-                    .padding(14.dp)
-            ) {
+            HgCard(Modifier.fillMaxWidth()) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Schedule,
-                        contentDescription = null,
-                        tint = Volt,
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "TIME EVALUATION SWITCHER (6:00 PM RULE TESTER)",
-                        color = Volt,
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
+                    ProgressRing(
+                        progress = progress,
+                        color = ringColor,
+                        strokeWidth = 12.dp,
+                        modifier = Modifier
+                            .weight(1.15f)
+                            .aspectRatio(1f)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("%,d".format(state.currentSteps), style = MaterialTheme.typography.headlineLarge, color = TextHigh)
+                            Text("of %,d steps".format(state.targetSteps), style = MaterialTheme.typography.bodySmall, color = TextMid)
+                            Spacer(Modifier.height(6.dp))
+                            StatusPill("${(progress * 100).toInt()}%", ringColor)
+                        }
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    // Live walking mannequin; pauses at zero steps.
+                    Box(
+                        Modifier
+                            .weight(0.85f)
+                            .aspectRatio(0.72f)
+                            .clip(RoundedCornerShape(18.dp))
+                    ) {
+                        Exercise3DView(
+                            exerciseKey = "d7_active_recovery_walk",
+                            targetMuscles = listOf("Calves", "Glutes"),
+                            modifier = Modifier.fillMaxSize(),
+                            interactive = false,
+                            isPlaying = state.currentSteps > 0,
+                            yawDeg = 60f,
+                            pitchDeg = 10f
+                        )
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    MetricTile(Icons.Filled.Place, "${state.distanceKm}", "Distance", FatColor, Modifier.weight(1f), unit = "km")
+                    MetricTile(Icons.Filled.LocalFireDepartment, "${state.caloriesBurned}", "Burned", Ignite, Modifier.weight(1f), unit = "kcal")
+                    MetricTile(Icons.Filled.Timer, "${state.activeMinutes}", "Active", Success, Modifier.weight(1f), unit = "min")
+                }
+            }
+        }
+
+        // ── Alert / celebration ───────────────────────────────────────────────
+        if (state.alertResult.isAlertTriggered) {
+            item {
+                HgCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    containerColor = Danger.copy(alpha = 0.08f),
+                    borderColor = Danger.copy(alpha = 0.35f)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.NotificationsActive, contentDescription = null, tint = Danger, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            state.alertResult.alertTitle ?: "Step deficit",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = TextHigh
+                        )
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Text(state.alertResult.alertMessage ?: "", style = MaterialTheme.typography.bodyMedium, color = TextMid)
+                    Spacer(Modifier.height(14.dp))
+                    HgPrimaryButton(
+                        text = "Log a 3,000-step walk",
+                        icon = Icons.AutoMirrored.Filled.DirectionsWalk,
+                        onClick = { viewModel.addSteps(3000) },
+                        modifier = Modifier.fillMaxWidth()
                     )
                 }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "Current Evaluated Time: ${String.format("%02d:%02d", state.simulatedHour, state.simulatedMinute)}",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
+            }
+        } else if (goalHit) {
+            item {
+                HgCard(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    containerColor = Success.copy(alpha = 0.08f),
+                    borderColor = Success.copy(alpha = 0.35f)
                 ) {
-                    OutlinedButton(
-                        onClick = { viewModel.setTime(14, 0) },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f).height(34.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-                    ) {
-                        Text(text = "2:00 PM (Pre)", fontSize = 10.sp, color = Color.White)
-                    }
-
-                    OutlinedButton(
-                        onClick = { viewModel.setTime(17, 59) },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f).height(34.dp),
-                        border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-                    ) {
-                        Text(text = "5:59 PM (Safe)", fontSize = 10.sp, color = Color.White)
-                    }
-
-                    OutlinedButton(
-                        onClick = { viewModel.setTime(18, 0) },
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.weight(1f).height(34.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            1.dp,
-                            if (state.simulatedHour >= 18) Ember else BorderStroke
-                        )
-                    ) {
-                        Text(text = "6:00 PM (Alert)", fontSize = 10.sp, color = Ember, fontWeight = FontWeight.Bold)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.EmojiEvents, contentDescription = null, tint = Success)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text("Goal reached", style = MaterialTheme.typography.titleSmall, color = TextHigh)
+                            Text("Great work for insulin sensitivity and recovery.", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                        }
                     }
                 }
             }
         }
 
-        // Quick Step Logging Buttons
+        // ── Manual logging ────────────────────────────────────────────────────
         item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Panel)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(16.dp))
-                    .padding(14.dp)
-            ) {
-                Text(
-                    text = "LOG STEP ACTIVITY",
-                    color = TextSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    listOf(500, 1000, 2500, 5000).forEach { delta ->
-                        Button(
-                            onClick = { viewModel.addSteps(delta) },
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.weight(1f).height(36.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Surface,
-                                contentColor = Volt
-                            )
+            HgCard(Modifier.fillMaxWidth()) {
+                SectionLabel("Add steps") {
+                    TextButton(onClick = { viewModel.resetSteps() }) { Text("Reset", color = TextMid) }
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    STEP_INCREMENTS.forEach { delta ->
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .heightIn(min = 48.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(Surface2)
+                                .clickable(role = Role.Button) { viewModel.addSteps(delta) },
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "+$delta",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold
+                                if (delta >= 1000) "+${delta / 1000f}k".replace(".0k", "k") else "+$delta",
+                                style = MaterialTheme.typography.labelLarge,
+                                color = TextHigh
                             )
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedButton(
-                    onClick = { viewModel.resetSteps() },
-                    shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.fillMaxWidth().height(34.dp),
-                    border = androidx.compose.foundation.BorderStroke(1.dp, BorderStroke)
-                ) {
-                    Text(
-                        text = "Reset Steps to 0",
-                        fontSize = 11.sp,
-                        color = TextSecondary
-                    )
-                }
             }
         }
 
+        // ── Alert check time ──────────────────────────────────────────────────
         item {
-            Spacer(modifier = Modifier.height(16.dp))
+            HgCard(Modifier.fillMaxWidth()) {
+                Text("Deficit check", style = MaterialTheme.typography.titleMedium, color = TextHigh)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "An alert fires when you're under 5,000 steps at 6:00 PM. Evaluating at %02d:%02d."
+                        .format(state.simulatedHour, state.simulatedMinute),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMid
+                )
+                Spacer(Modifier.height(12.dp))
+                val selected = CHECK_TIMES.indexOfFirst { it.first == state.simulatedHour && it.second == state.simulatedMinute }
+                SegmentedControl(
+                    options = listOf("2:00 PM", "5:59 PM", "6:00 PM", "Now"),
+                    selectedIndex = if (selected >= 0) selected else 3,
+                    onSelect = { i ->
+                        if (i < CHECK_TIMES.size) viewModel.setTime(CHECK_TIMES[i].first, CHECK_TIMES[i].second)
+                        else viewModel.syncSystemTime()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
         }
     }
 }
 
-@Composable
-private fun StepMetricItem(
-    label: String,
-    value: String,
-    color: Color
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(
-            text = label,
-            color = TextSecondary,
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Black,
-            letterSpacing = 0.5.sp
-        )
-        Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = value,
-            color = color,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Black
-        )
-    }
-}

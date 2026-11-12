@@ -2,7 +2,6 @@ package com.hostelgains.ui.components
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -15,8 +14,12 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -25,70 +28,78 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import com.hostelgains.ui.theme.BorderStroke
-import com.hostelgains.ui.theme.Muted
-import com.hostelgains.ui.theme.Panel
-import com.hostelgains.ui.theme.Volt
+import com.hostelgains.ui.theme.Canvas0
+import com.hostelgains.ui.theme.Ignite
+import com.hostelgains.ui.theme.Outline
+import com.hostelgains.ui.theme.TextHigh
+import com.hostelgains.ui.theme.TextLow
 
+/**
+ * Bottom navigation with a pill indicator behind the selected icon.
+ * Each item takes an equal weight so it adapts to any phone width.
+ */
 @Composable
 fun HostelBottomNavigation(
     currentTab: NavigationTab,
     onTabSelected: (NavigationTab) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(
+    Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(Panel)
-            .border(width = 1.dp, color = BorderStroke)
-            .navigationBarsPadding()
+            .background(Canvas0)
     ) {
+        HorizontalDivider(color = Outline, thickness = 1.dp)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(68.dp)
+                .navigationBarsPadding()
+                .height(72.dp)
                 .padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
+            horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            NavigationTab.values().forEach { tab ->
-                val isSelected = tab == currentTab
-                val iconTint by animateColorAsState(
-                    targetValue = if (isSelected) Volt else Muted,
-                    label = "iconTint"
+            NavigationTab.entries.forEach { tab ->
+                val selected = tab == currentTab
+                val pill by animateColorAsState(
+                    if (selected) Ignite.copy(alpha = 0.16f) else Color.Transparent,
+                    label = "navPill"
                 )
-                val textColor by animateColorAsState(
-                    targetValue = if (isSelected) Volt else Muted,
-                    label = "textColor"
-                )
-
+                val tint by animateColorAsState(if (selected) Ignite else TextLow, label = "navTint")
+                val label by animateColorAsState(if (selected) TextHigh else TextLow, label = "navLabel")
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(CircleShape)
-                        .clickable(
+                        .selectable(
+                            selected = selected,
+                            role = Role.Tab,
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = null
-                        ) { onTabSelected(tab) }
-                        .padding(vertical = 8.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
+                            indication = null,
+                            onClick = { onTabSelected(tab) }
+                        )
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Icon(
-                        imageVector = tab.icon,
-                        contentDescription = tab.title,
-                        tint = iconTint,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Box(
+                        modifier = Modifier
+                            .width(56.dp)
+                            .height(32.dp)
+                            .clip(CircleShape)
+                            .background(pill),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(tab.icon, contentDescription = null, tint = tint, modifier = Modifier.size(22.dp))
+                    }
+                    Spacer(Modifier.height(4.dp))
                     Text(
                         text = tab.title,
-                        color = textColor,
-                        fontSize = 11.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium
+                        color = label,
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1
                     )
                 }
             }

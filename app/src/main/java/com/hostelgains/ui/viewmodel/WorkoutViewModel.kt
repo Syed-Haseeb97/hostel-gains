@@ -2,11 +2,15 @@ package com.hostelgains.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import com.hostelgains.data.nutrition.MealRepository
+import com.hostelgains.data.profile.UserProfileRepository
 import com.hostelgains.domain.nutrition.DailyMacroSummary
+import com.hostelgains.domain.physique.PhysiqueBuild
+import com.hostelgains.domain.physique.UserProfile
 import com.hostelgains.domain.workout.AdjustedExercise
 import com.hostelgains.domain.workout.AdjustedWorkoutPlan
 import com.hostelgains.domain.workout.CompensatoryEngine
 import com.hostelgains.domain.workout.DefaultCompensatoryEngine
+import com.hostelgains.domain.workout.DynamicWorkoutRepository
 import com.hostelgains.domain.workout.Exercise
 import com.hostelgains.domain.workout.VTaperWorkoutRepository
 import com.hostelgains.domain.workout.WorkoutDayPlan
@@ -31,19 +35,36 @@ data class RebalanceState(
 
 data class WorkoutUiState(
     val selectedDayIndex: Int = 0, // 0..6 for Day 1..Day 7
+    val targetBuild: PhysiqueBuild = PhysiqueBuild.V_TAPER,
     val basePlan: WorkoutDayPlan,
     val adjustedPlan: AdjustedWorkoutPlan,
     val completedExerciseIds: Set<String> = emptySet(),
     val rebalanceState: RebalanceState = RebalanceState(),
-    val dailyMacros: DailyMacroSummary
+    val dailyMacros: DailyMacroSummary,
+    val userProfile: UserProfile? = null
 )
 
 class WorkoutViewModel(
-    private val workoutRepository: VTaperWorkoutRepository = VTaperWorkoutRepository(),
+    private val dynamicWorkoutRepository: DynamicWorkoutRepository = DynamicWorkoutRepository(),
     private val compensatoryEngine: CompensatoryEngine = DefaultCompensatoryEngine(),
     private val mealRepository: MealRepository = AppRepositories.mealRepository,
+    private val profileRepository: UserProfileRepository? = null,
     private val externalScope: CoroutineScope? = null
 ) : ViewModel() {
+
+    // Secondary constructor for backward compatibility with tests passing VTaperWorkoutRepository
+    constructor(
+        workoutRepository: VTaperWorkoutRepository,
+        compensatoryEngine: CompensatoryEngine = DefaultCompensatoryEngine(),
+        mealRepository: MealRepository = AppRepositories.mealRepository,
+        externalScope: CoroutineScope? = null
+    ) : this(
+        dynamicWorkoutRepository = DynamicWorkoutRepository(PhysiqueBuild.V_TAPER),
+        compensatoryEngine = compensatoryEngine,
+        mealRepository = mealRepository,
+        profileRepository = null,
+        externalScope = externalScope
+    )
 
     private val scope: CoroutineScope
         get() = externalScope ?: CoroutineScope(Dispatchers.Default)
@@ -51,21 +72,25 @@ class WorkoutViewModel(
     private var _selectedDayIndex: Int = 0
     private var _completedExercises: Set<String> = emptySet()
     private var _rebalanceState: RebalanceState = RebalanceState()
+    private var _activeBuild: PhysiqueBuild = profileRepository?.userProfile?.value?.targetBuild ?: PhysiqueBuild.V_TAPER
 
     private val _uiState = MutableStateFlow(buildInitialUiState())
     val uiState: StateFlow<WorkoutUiState> = _uiState.asStateFlow()
 
     private fun buildInitialUiState(): WorkoutUiState {
-        val base = workoutRepository.getDayPlan(1)
+        dynamicWorkoutRepository.setTargetBuild(_activeBuild)
+        val base = dynamicWorkoutRepository.getDayPlan(1, _activeBuild)
         val initialSummary = mealRepository.getDailySummary().value
         val adj = computeAdjustedPlan(base, initialSummary, _rebalanceState)
         return WorkoutUiState(
             selectedDayIndex = 0,
+            targetBuild = _activeBuild,
             basePlan = base,
             adjustedPlan = adj,
             completedExerciseIds = emptySet(),
             rebalanceState = _rebalanceState,
-            dailyMacros = initialSummary
+            dailyMacros = initialSummary,
+            userProfile = profileRepository?.userProfile?.value
         )
     }
 
@@ -76,34 +101,63 @@ class WorkoutViewModel(
                 updateState(summary = updatedSummary)
             }
         }
+        if (profileRepository != null) {
+            scope.launch {
+                profileRepository.userProfile.collect { updatedProfile ->
+                    if (updatedProfile.targetBuild != _activeBuild) {
+                        _activeBuild = updatedProfile.targetBuild
+                        dynamicWorkoutRepository.setTargetBuild(_activeBuild)
+                        updateState()
+                    }
+                }
+            }
+        }
     }
 
     private fun updateState(
         dayIndex: Int = _selectedDayIndex,
         completed: Set<String> = _completedExercises,
         rebalance: RebalanceState = _rebalanceState,
-        summary: DailyMacroSummary = mealRepository.getDailySummary().value
+        summary: DailyMacroSummary = mealRepository.getDailySummary().value,
+        build: PhysiqueBuild = _activeBuild
     ) {
         _selectedDayIndex = dayIndex
         _completedExercises = completed
         _rebalanceState = rebalance
-        val basePlan = workoutRepository.getDayPlan(dayIndex + 1)
+        _activeBuild = build
+        dynamicWorkoutRepository.setTargetBuild(build)
+        val basePlan = dynamicWorkoutRepository.getDayPlan(dayIndex + 1, build)
         val adjusted = computeAdjustedPlan(basePlan, summary, rebalance)
         _uiState.value = WorkoutUiState(
             selectedDayIndex = dayIndex,
+            targetBuild = build,
             basePlan = basePlan,
             adjustedPlan = adjusted,
             completedExerciseIds = completed,
             rebalanceState = rebalance,
-            dailyMacros = summary
+            dailyMacros = summary,
+            userProfile = profileRepository?.userProfile?.value
         )
+    }
+
+    fun selectPhysiqueBuild(build: PhysiqueBuild) {
+        _activeBuild = build
+        dynamicWorkoutRepository.setTargetBuild(build)
+        profileRepository?.updateTargetBuild(build)
+        // Reset rebalance when switching builds to prevent cross-routine mismatches
+        _rebalanceState = RebalanceState()
+        updateState(build = build, rebalance = _rebalanceState)
+    }
+
+    fun getAllPlans(): List<WorkoutDayPlan> {
+        return dynamicWorkoutRepository.getAllPlans(_activeBuild)
     }
 
     fun selectDay(dayIndex: Int) {
         if (dayIndex in 0..6) {
             var rebalance = _rebalanceState
             if (rebalance.isRebalanced) {
-                val currentDayPlan = workoutRepository.getDayPlan(dayIndex + 1)
+                val currentDayPlan = dynamicWorkoutRepository.getDayPlan(dayIndex + 1, _activeBuild)
                 if (currentDayPlan.exercises.none { it.id == rebalance.skippedExerciseId }) {
                     rebalance = RebalanceState()
                 }
@@ -128,7 +182,7 @@ class WorkoutViewModel(
     }
 
     fun skipExercise(exerciseId: String, reason: String = "Equipment unavailable / skipped") {
-        val dayPlan = workoutRepository.getDayPlan(_selectedDayIndex + 1)
+        val dayPlan = dynamicWorkoutRepository.getDayPlan(_selectedDayIndex + 1, _activeBuild)
         val targetExercise = dayPlan.exercises.find { it.id == exerciseId } ?: return
 
         val compensationResult = computeDeterministicCompensation(dayPlan, targetExercise, reason)
@@ -144,12 +198,17 @@ class WorkoutViewModel(
         updateState(rebalance = newRebalance)
     }
 
+    fun undoRebalance() {
+        updateState(rebalance = RebalanceState())
+    }
+
+    fun resetRebalance() = undoRebalance()
+
     fun rebalanceFromPrompt(prompt: String) {
         val trimmed = prompt.trim()
         if (trimmed.isEmpty()) return
 
-        val dayPlan = workoutRepository.getDayPlan(_selectedDayIndex + 1)
-        // Find which exercise in today's plan matches the prompt
+        val dayPlan = dynamicWorkoutRepository.getDayPlan(_selectedDayIndex + 1, _activeBuild)
         val matchedExercise = dayPlan.exercises.firstOrNull { ex ->
             val lowerPrompt = trimmed.lowercase()
             val lowerName = ex.name.lowercase()
@@ -173,27 +232,65 @@ class WorkoutViewModel(
         skipExercise(matchedExercise.id, reason)
     }
 
-    fun resetRebalance() {
-        updateState(rebalance = RebalanceState(isRebalanced = false))
+    private fun computeAdjustedPlan(
+        basePlan: WorkoutDayPlan,
+        summary: DailyMacroSummary,
+        rebalance: RebalanceState
+    ): AdjustedWorkoutPlan {
+        val normalAdjusted = compensatoryEngine.evaluateWorkout(basePlan, summary)
+        if (!rebalance.isRebalanced || rebalance.skippedExerciseId == null) {
+            return normalAdjusted
+        }
+
+        val updatedExercises = normalAdjusted.exercises.map { adjEx ->
+            if (adjEx.baseExercise.id == rebalance.skippedExerciseId) {
+                adjEx.copy(
+                    effectiveSets = 0,
+                    effectiveReps = "0 (Skipped)",
+                    adjustmentNotes = adjEx.adjustmentNotes + "Skipped: ${rebalance.reason}"
+                )
+            } else {
+                val comp = rebalance.compensations.find { it.exerciseName == adjEx.baseExercise.name }
+                if (comp != null) {
+                    adjEx.copy(
+                        effectiveSets = adjEx.effectiveSets + comp.extraSets,
+                        effectiveReps = if (comp.repAdjustment.isNotEmpty()) comp.repAdjustment else adjEx.effectiveReps,
+                        adjustmentNotes = adjEx.adjustmentNotes + "AI Rebalanced: +${comp.extraSets} sets (${comp.rationale})"
+                    )
+                } else {
+                    adjEx
+                }
+            }
+        }
+
+        val updatedTriggers = normalAdjusted.activeTriggers +
+                "Rebalanced: ${rebalance.skippedExerciseName} (${rebalance.reason})"
+
+        return normalAdjusted.copy(
+            exercises = updatedExercises,
+            activeTriggers = updatedTriggers
+        )
     }
 
-    /**
-     * Deterministic synergistic fallback compensation matrix.
-     */
+    private data class CompensationCalculation(
+        val coachMessage: String,
+        val compensations: List<CompensationItemUi>
+    )
+
     private fun computeDeterministicCompensation(
         dayPlan: WorkoutDayPlan,
-        skippedEx: Exercise,
+        skipped: Exercise,
         reason: String
-    ): CompensationOutcome {
+    ): CompensationCalculation {
         val compensations = mutableListOf<CompensationItemUi>()
         val coachMsg: String
 
         when {
             // Back / Lat Pulldown -> Seated Cable Rows or other Row
-            skippedEx.name.contains("Lat Pulldown", ignoreCase = true) -> {
+            skipped.name.contains("Lat Pulldown", ignoreCase = true) || skipped.targetMuscle == com.hostelgains.domain.workout.MuscleGroup.LATS -> {
                 val rowEx = dayPlan.exercises.find { it.name.contains("Row", ignoreCase = true) }
-                    ?: dayPlan.exercises.find { it.id != skippedEx.id }
-                val targetName = rowEx?.name ?: "Doorway / Towel Rows"
+                    ?: dayPlan.exercises.find { it.id != skipped.id }
+                val targetName = rowEx?.name ?: "Seated Cable Rows"
                 compensations.add(
                     CompensationItemUi(
                         exerciseName = targetName,
@@ -202,13 +299,13 @@ class WorkoutViewModel(
                         rationale = "Redistributes lat and upper-back volume so weekly V-taper growth is maintained."
                     )
                 )
-                coachMsg = "Swapped out ${skippedEx.name}. Added 2 sets to $targetName to hit your back threshold!"
+                coachMsg = "Swapped out ${skipped.name}. Added 2 sets to $targetName to hit your back threshold!"
             }
 
             // Incline DB Press / Upper Chest -> Incline Push-ups
-            skippedEx.name.contains("Press", ignoreCase = true) || skippedEx.name.contains("Chest", ignoreCase = true) -> {
+            skipped.name.contains("Press", ignoreCase = true) || skipped.name.contains("Chest", ignoreCase = true) || skipped.targetMuscle == com.hostelgains.domain.workout.MuscleGroup.CHEST -> {
                 val pushupEx = dayPlan.exercises.find { it.name.contains("Push-up", ignoreCase = true) || it.name.contains("Dips", ignoreCase = true) }
-                    ?: dayPlan.exercises.find { it.id != skippedEx.id }
+                    ?: dayPlan.exercises.find { it.id != skipped.id }
                 val targetName = pushupEx?.name ?: "Incline Push-ups"
                 compensations.add(
                     CompensationItemUi(
@@ -218,143 +315,43 @@ class WorkoutViewModel(
                         rationale = "Transfers clavicular upper-pec overload to bodyweight incline press without joint strain."
                     )
                 )
-                coachMsg = "Swapped out ${skippedEx.name}. Added 2 sets to $targetName to protect shoulders and maintain pec volume!"
+                coachMsg = "Swapped out ${skipped.name}. Added 2 sets to $targetName to protect shoulders and maintain pec volume!"
             }
 
             // Squats / Quads -> Bodyweight Squats
-            skippedEx.name.contains("Squat", ignoreCase = true) -> {
-                val bwSquatEx = dayPlan.exercises.find { it.name.contains("Bodyweight Squat", ignoreCase = true) }
-                    ?: dayPlan.exercises.find { it.id != skippedEx.id }
+            skipped.name.contains("Squat", ignoreCase = true) || skipped.targetMuscle == com.hostelgains.domain.workout.MuscleGroup.QUADS -> {
+                val bwSquatEx = dayPlan.exercises.find { it.name.contains("Squat", ignoreCase = true) && it.id != skipped.id }
+                    ?: dayPlan.exercises.find { it.id != skipped.id }
                 val targetName = bwSquatEx?.name ?: "Bodyweight Squats"
                 compensations.add(
                     CompensationItemUi(
                         exerciseName = targetName,
                         extraSets = 2,
                         repAdjustment = "To failure",
-                        rationale = "Maintains quad sweep hypertrophy via high-cadence bodyweight squat burnout."
+                        rationale = "High-rep bodyweight overload compensates for skipped axial squat loading."
                     )
                 )
-                coachMsg = "Swapped out ${skippedEx.name}. Added 2 sets to $targetName for quad overload without spinal loading!"
+                coachMsg = "Squat station unavailable. Redirected quad volume into $targetName with metabolic burnout sets!"
             }
 
-            // Other exercises (Hamstring / Core / Delts / Arms)
             else -> {
-                val altEx = dayPlan.exercises.firstOrNull { it.id != skippedEx.id }
-                val targetName = altEx?.name ?: "Synergistic Movement"
+                val alt = dayPlan.exercises.firstOrNull { it.id != skipped.id }
+                val targetName = alt?.name ?: "Alternative compound movement"
                 compensations.add(
                     CompensationItemUi(
                         exerciseName = targetName,
                         extraSets = 2,
-                        repAdjustment = altEx?.repRange ?: "8-12 reps",
-                        rationale = "Redistributes volume to synergistic stabilizer muscles to maintain weekly training load."
+                        repAdjustment = "8-12 reps",
+                        rationale = "Rebalances total working volume for the session."
                     )
                 )
-                coachMsg = "Adjusted workout routine. Transferred 2 volume sets to $targetName."
+                coachMsg = "Swapped out ${skipped.name}. Rebalanced volume into $targetName."
             }
         }
 
-        return CompensationOutcome(coachMsg, compensations)
-    }
-
-    /**
-     * Layers rebalancing with CompensatoryEngine rules and enforces strict 3-set protein deficit cap precedence.
-     */
-    private fun computeAdjustedPlan(
-        basePlan: WorkoutDayPlan,
-        dailyMacros: DailyMacroSummary,
-        rebalance: RebalanceState
-    ): AdjustedWorkoutPlan {
-        if (basePlan.isActiveRest) {
-            return compensatoryEngine.evaluateWorkout(basePlan, dailyMacros)
-        }
-
-        val isCarbTriggerActive = dailyMacros.hasHighCarbTrigger || (dailyMacros.mealCount > 0 && dailyMacros.totalCarbs >= 60.0f)
-        val isProteinDeficitActive = dailyMacros.hasProteinDeficitTrigger || (dailyMacros.mealCount > 0 && dailyMacros.totalProtein < 20.0f)
-
-        val activeTriggers = mutableListOf<String>()
-        if (isCarbTriggerActive) {
-            activeTriggers.add("High-Carb Active (+1 Set to Lats & Squats)")
-        }
-        if (isProteinDeficitActive) {
-            activeTriggers.add("Protein Deficit Active (Capped at 3 Sets)")
-        }
-        if (rebalance.isRebalanced) {
-            activeTriggers.add("AI Rebalanced (Volume Redistributed)")
-        }
-
-        val adjustedExercises = basePlan.exercises.map { exercise ->
-            if (rebalance.isRebalanced && exercise.id == rebalance.skippedExerciseId) {
-                // Exercise was skipped
-                AdjustedExercise(
-                    baseExercise = exercise,
-                    effectiveSets = 0,
-                    effectiveReps = "Skipped",
-                    isCarbBonusApplied = false,
-                    isProteinCapApplied = false,
-                    adjustmentNotes = listOf("Skipped: ${rebalance.reason}")
-                )
-            } else {
-                // Check if this exercise received rebalance compensation
-                val comp = if (rebalance.isRebalanced) {
-                    rebalance.compensations.find { it.exerciseName.equals(exercise.name, ignoreCase = true) }
-                } else null
-                val rebalanceExtraSets = comp?.extraSets ?: 0
-
-                // Carb bonus
-                val isCarbTargetExercise = exercise.isCompensatoryEligibleCarb ||
-                        exercise.name.contains("Lat Pulldown", ignoreCase = true) ||
-                        exercise.name.contains("Squat", ignoreCase = true)
-                val carbBonus = if (isCarbTriggerActive && isCarbTargetExercise) 1 else 0
-
-                val tentativeSets = exercise.baselineSets + rebalanceExtraSets + carbBonus
-
-                val effectiveSets: Int
-                val isProteinCapApplied: Boolean
-
-                if (isProteinDeficitActive) {
-                    effectiveSets = min(3, tentativeSets)
-                    isProteinCapApplied = tentativeSets > 3 || exercise.baselineSets > 3
-                } else {
-                    effectiveSets = tentativeSets
-                    isProteinCapApplied = false
-                }
-
-                val notes = mutableListOf<String>()
-                if (rebalanceExtraSets > 0) {
-                    notes.add("+$rebalanceExtraSets sets (AI Rebalanced)")
-                }
-                if (carbBonus > 0) {
-                    notes.add("+1 set (Carb Surplus: ${dailyMacros.totalCarbs}g)")
-                }
-                if (isProteinCapApplied) {
-                    notes.add("Capped at 3 sets (Protein Deficit: ${dailyMacros.totalProtein}g)")
-                }
-                if (notes.isEmpty()) {
-                    notes.add("Baseline sets maintained")
-                }
-
-                AdjustedExercise(
-                    baseExercise = exercise,
-                    effectiveSets = effectiveSets,
-                    effectiveReps = exercise.repRange,
-                    isCarbBonusApplied = carbBonus > 0,
-                    isProteinCapApplied = isProteinCapApplied,
-                    adjustmentNotes = notes
-                )
-            }
-        }
-
-        return AdjustedWorkoutPlan(
-            dayNumber = basePlan.dayNumber,
-            dayName = basePlan.dayName,
-            focusArea = basePlan.focusArea,
-            exercises = adjustedExercises,
-            activeTriggers = activeTriggers
+        return CompensationCalculation(
+            coachMessage = coachMsg,
+            compensations = compensations
         )
     }
-
-    private data class CompensationOutcome(
-        val coachMessage: String,
-        val compensations: List<CompensationItemUi>
-    )
 }

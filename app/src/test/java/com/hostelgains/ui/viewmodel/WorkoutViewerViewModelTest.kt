@@ -56,16 +56,16 @@ class WorkoutViewerViewModelTest {
     fun testCameraPresets_updatesYawAndPitch() {
         viewModel.setCameraPreset(CameraPreset.FRONT)
         var state = viewModel.uiState.value
-        assertEquals(90f, state.yawDeg, 0.01f)
+        assertEquals(CameraPreset.FRONT.yawDeg, state.yawDeg, 0.01f)
         assertFalse(state.isAutoOrbit)
 
         viewModel.setCameraPreset(CameraPreset.SIDE)
         state = viewModel.uiState.value
-        assertEquals(0f, state.yawDeg, 0.01f)
+        assertEquals(CameraPreset.SIDE.yawDeg, state.yawDeg, 0.01f)
 
         viewModel.setCameraPreset(CameraPreset.THREE_QUARTER)
         state = viewModel.uiState.value
-        assertEquals(-35f, state.yawDeg, 0.01f)
+        assertEquals(CameraPreset.THREE_QUARTER.yawDeg, state.yawDeg, 0.01f)
     }
 
     @Test

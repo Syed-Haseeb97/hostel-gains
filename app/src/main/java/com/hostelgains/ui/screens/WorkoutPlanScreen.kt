@@ -1,223 +1,359 @@
 package com.hostelgains.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.FitnessCenter
-import androidx.compose.material.icons.filled.NotInterested
-import androidx.compose.material.icons.filled.Visibility
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material.icons.filled.SelfImprovement
+import androidx.compose.material.icons.filled._3dRotation
+import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.hostelgains.domain.workout.AdjustedExercise
-import com.hostelgains.ui.components.AiModeBadge
-import com.hostelgains.ui.components.ExpandableCoachCard
-import com.hostelgains.ui.components.HighCarbBadge
-import com.hostelgains.ui.components.HostelGainsLogoBadge
-import com.hostelgains.ui.components.Mannequin3DView
-import com.hostelgains.ui.components.ProteinDeficitBadge
-import com.hostelgains.ui.theme.BorderStroke
-import com.hostelgains.ui.theme.Ember
-import com.hostelgains.ui.theme.Ink
-import com.hostelgains.ui.theme.Muted
-import com.hostelgains.ui.theme.Panel
-import com.hostelgains.ui.theme.SuccessGreen
-import com.hostelgains.ui.theme.Surface
-import com.hostelgains.ui.theme.TextPrimary
-import com.hostelgains.ui.theme.TextSecondary
-import com.hostelgains.ui.theme.Volt
+import com.hostelgains.domain.workout.VTaperWorkoutRepository
+import com.hostelgains.ui.components.AiModeChip
+import com.hostelgains.ui.components.CoachRebalanceCard
+import com.hostelgains.ui.components.HgCard
+import com.hostelgains.ui.components.HgTextField
+import com.hostelgains.ui.components.ProgressRing
+import com.hostelgains.ui.components.ScreenHeader
+import com.hostelgains.ui.components.SectionLabel
+import com.hostelgains.ui.components.StatusPill
+import com.hostelgains.ui.theme.Canvas0
+import com.hostelgains.ui.theme.Danger
+import com.hostelgains.ui.theme.Ignite
+import com.hostelgains.ui.theme.Info
+import com.hostelgains.ui.theme.OnIgnite
+import com.hostelgains.ui.theme.Outline
+import com.hostelgains.ui.theme.Success
+import com.hostelgains.ui.theme.Surface1
+import com.hostelgains.ui.theme.Surface2
+import com.hostelgains.ui.theme.Surface3
+import com.hostelgains.ui.theme.TextHigh
+import com.hostelgains.ui.theme.TextLow
+import com.hostelgains.ui.theme.TextMid
+import com.hostelgains.ui.theme.Warning
+import com.hostelgains.ui.three.Exercise3DView
 import com.hostelgains.ui.viewmodel.WorkoutViewModel
 
-val PPL_DAYS_ABBR = listOf("Day 1\nPull A", "Day 2\nPush A", "Day 3\nLegs", "Day 4\nPull B", "Day 5\nPush B", "Day 6\nPump", "Day 7\nRest")
+private val QUICK_ISSUES = listOf(
+    "No lat pulldown machine today",
+    "Wrist hurts on presses",
+    "Squat rack is busy"
+)
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun WorkoutPlanScreen(
     viewModel: WorkoutViewModel,
-    onNavigateToViewer: (String) -> Unit = {},
     modifier: Modifier = Modifier,
+    profileViewModel: com.hostelgains.ui.viewmodel.PhysiqueProfileViewModel? = null,
     isPremiumAi: Boolean = false,
-    onUnlockAiClicked: () -> Unit = {}
+    onUnlockAiClicked: () -> Unit = {},
+    onNavigateToViewer: (exerciseId: String) -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
-    var promptInput by remember { mutableStateOf("") }
+    val week = remember(state.targetBuild) { viewModel.getAllPlans() }
+    val focusManager = LocalFocusManager.current
+    var prompt by rememberSaveable { mutableStateOf("") }
+    var showBuildSelector by rememberSaveable { mutableStateOf(false) }
+    val daysState = rememberLazyListState()
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+
+    if (showBuildSelector && profileViewModel != null) {
+        PhysiqueSelectionScreen(
+            viewModel = profileViewModel,
+            onDismiss = { showBuildSelector = false },
+            onConfirmed = { selectedBuild ->
+                viewModel.selectPhysiqueBuild(selectedBuild)
+                showBuildSelector = false
+            }
+        )
+        return
+    }
+
+    LaunchedEffect(state.selectedDayIndex) {
+        daysState.animateScrollToItem((state.selectedDayIndex - 1).coerceAtLeast(0))
+    }
+
+    val exercises = state.adjustedPlan.exercises
+    val doneCount = exercises.count { it.baseExercise.id in state.completedExerciseIds }
+    val isRest = state.basePlan.isActiveRest
+
+    fun submitPrompt(text: String) {
+        if (text.isBlank()) return
+        viewModel.rebalanceFromPrompt(text)
+        prompt = ""
+        focusManager.clearFocus()
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Ink)
-            .padding(horizontal = 16.dp),
+            .background(Canvas0),
+        contentPadding = PaddingValues(top = top + 12.dp, bottom = 24.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            // AI Mode Badge
-            AiModeBadge(
-                isPremium = isPremiumAi,
-                modifier = Modifier.clickable { if (!isPremiumAi) onUnlockAiClicked() }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            ScreenHeader(
+                eyebrow = "${state.targetBuild.title} · ${state.targetBuild.repRangeSummary}",
+                title = "Train",
+                modifier = Modifier.padding(horizontal = 20.dp)
             ) {
-                Column {
-                    Text(
-                        text = "V-TAPER PPL PLAN",
-                        color = Color.White,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.Black,
-                        letterSpacing = 1.sp
-                    )
-                    Text(
-                        text = "Dynamic Hypertrophy & Rebalancing Engine",
-                        color = TextSecondary,
-                        fontSize = 12.sp
-                    )
-                }
-                HostelGainsLogoBadge(size = 46.dp)
+                AiModeChip(isPremium = isPremiumAi, onClick = onUnlockAiClicked)
             }
         }
 
-        // 7-Day PPL Selector Carousel
+        // ── Active Physique Build Pathway Card ────────────────────────────────
+        item {
+            HgCard(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth()
+                    .clickable {
+                        if (profileViewModel != null) {
+                            showBuildSelector = true
+                        }
+                    },
+                containerColor = Surface2,
+                borderColor = Ignite.copy(alpha = 0.45f)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(state.targetBuild.visualBadge, style = MaterialTheme.typography.headlineMedium)
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    state.targetBuild.title,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextHigh
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                StatusPill(state.targetBuild.archetypeTag, color = Ignite)
+                            }
+                            Text(
+                                "${state.targetBuild.repRangeSummary} · ${state.targetBuild.targetAesthetic}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMid,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                    if (profileViewModel != null) {
+                        Text(
+                            "Change",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Ignite
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── Day selector ──────────────────────────────────────────────────────
         item {
             LazyRow(
-                modifier = Modifier.fillMaxWidth(),
+                state = daysState,
+                contentPadding = PaddingValues(horizontal = 16.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                items(PPL_DAYS_ABBR.indices.toList()) { index ->
-                    val isSelected = index == state.selectedDayIndex
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) Volt else Panel)
-                            .border(
-                                width = 1.dp,
-                                color = if (isSelected) Volt else BorderStroke,
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable { viewModel.selectDay(index) }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
+                itemsIndexed(week, key = { _, d -> d.dayNumber }) { index, day ->
+                    DayPill(
+                        number = day.dayNumber,
+                        label = day.dayName.substringAfter(": ", day.dayName),
+                        selected = index == state.selectedDayIndex,
+                        isRest = day.isActiveRest,
+                        onClick = { viewModel.selectDay(index) }
+                    )
+                }
+            }
+        }
+
+        // ── Day overview ──────────────────────────────────────────────────────
+        item {
+            HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Column(Modifier.weight(1f)) {
                         Text(
-                            text = PPL_DAYS_ABBR[index],
-                            color = if (isSelected) Ink else Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = if (isSelected) FontWeight.Black else FontWeight.Bold,
-                            lineHeight = 15.sp,
-                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                            state.basePlan.dayName.uppercase(),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = Ignite
                         )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            state.basePlan.focusArea,
+                            style = MaterialTheme.typography.headlineMedium,
+                            color = TextHigh
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    ProgressRing(
+                        progress = if (exercises.isEmpty()) 0f else doneCount / exercises.size.toFloat(),
+                        color = Success,
+                        strokeWidth = 7.dp,
+                        modifier = Modifier.size(68.dp)
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text("$doneCount/${exercises.size}", style = MaterialTheme.typography.titleSmall, color = TextHigh)
+                            Text("done", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                        }
+                    }
+                }
+                if (state.basePlan.guidanceNotes.isNotBlank()) {
+                    Spacer(Modifier.height(10.dp))
+                    Text(state.basePlan.guidanceNotes, style = MaterialTheme.typography.bodyMedium, color = TextMid)
+                }
+                if (state.adjustedPlan.activeTriggers.isNotEmpty()) {
+                    Spacer(Modifier.height(12.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        state.adjustedPlan.activeTriggers.forEach { trigger ->
+                            StatusPill(trigger, triggerColor(trigger), maxLines = 2)
+                        }
                     }
                 }
             }
         }
 
-        // Active Focus & Compensatory Adjustment Banner
-        item {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Panel)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            text = state.basePlan.dayName.uppercase(),
-                            color = Volt,
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "${state.completedExerciseIds.size}/${state.adjustedPlan.exercises.size} DONE",
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
+        if (state.rebalanceState.isRebalanced) {
+            item {
+                CoachRebalanceCard(
+                    isExpanded = state.rebalanceState.isCardExpanded,
+                    onToggleExpanded = { viewModel.toggleCoachCardExpanded() },
+                    skippedExerciseName = state.rebalanceState.skippedExerciseName ?: "exercise",
+                    reason = state.rebalanceState.reason,
+                    coachMessage = state.rebalanceState.coachMessage,
+                    compensations = state.rebalanceState.compensations,
+                    onResetToDefault = { viewModel.resetRebalance() },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+        }
 
-                    Spacer(modifier = Modifier.height(4.dp))
-
+        // ── Rebalancer prompt ─────────────────────────────────────────────────
+        if (!isRest) {
+            item {
+                HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+                    Text("Something not available?", style = MaterialTheme.typography.titleMedium, color = TextHigh)
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = state.basePlan.focusArea,
-                        color = Color.White,
-                        fontSize = 20.sp,
-                        fontWeight = FontWeight.Bold
+                        "Tell the coach and the volume is moved to a similar exercise.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMid
                     )
-
-                    if (state.basePlan.guidanceNotes.isNotBlank()) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = state.basePlan.guidanceNotes,
-                            color = TextSecondary,
-                            fontSize = 12.sp,
-                            lineHeight = 16.sp
+                    Spacer(Modifier.height(12.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        HgTextField(
+                            value = prompt,
+                            onValueChange = { prompt = it },
+                            placeholder = "e.g. Lat pulldown is taken",
+                            singleLine = true,
+                            maxLines = 1,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { submitPrompt(prompt) }),
+                            modifier = Modifier.weight(1f)
                         )
+                        Spacer(Modifier.width(8.dp))
+                        FilledIconButton(
+                            onClick = { submitPrompt(prompt) },
+                            enabled = prompt.isNotBlank(),
+                            modifier = Modifier.size(56.dp),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = IconButtonDefaults.filledIconButtonColors(
+                                containerColor = Ignite,
+                                contentColor = OnIgnite,
+                                disabledContainerColor = Surface3,
+                                disabledContentColor = TextLow
+                            )
+                        ) {
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Rebalance workout")
+                        }
                     }
-
-                    // Active triggers banner
-                    if (state.adjustedPlan.activeTriggers.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            state.adjustedPlan.activeTriggers.forEach { trigger ->
-                                when {
-                                    trigger.contains("High-Carb", true) || trigger.contains("Carbohydrate", true) -> {
-                                        HighCarbBadge(modifier = Modifier.fillMaxWidth())
-                                    }
-                                    trigger.contains("Protein Deficit", true) -> {
-                                        ProteinDeficitBadge(modifier = Modifier.fillMaxWidth())
-                                    }
-                                }
+                    Spacer(Modifier.height(10.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        QUICK_ISSUES.forEach { issue ->
+                            Box(
+                                Modifier
+                                    .heightIn(min = 36.dp)
+                                    .clip(CircleShape)
+                                    .background(Surface2)
+                                    .clickable(role = Role.Button) { submitPrompt(issue) }
+                                    .padding(horizontal = 12.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(issue, style = MaterialTheme.typography.labelMedium, color = TextMid)
                             }
                         }
                     }
@@ -225,347 +361,258 @@ fun WorkoutPlanScreen(
             }
         }
 
-        // AI Rebalanced Coach Rationale Card (if rebalance active)
         item {
-            if (state.rebalanceState.isRebalanced) {
-                ExpandableCoachCard(
-                    isExpanded = state.rebalanceState.isCardExpanded,
-                    onToggleExpanded = { viewModel.toggleCoachCardExpanded() },
-                    skippedExerciseName = state.rebalanceState.skippedExerciseName ?: "Exercise",
-                    reason = state.rebalanceState.reason,
-                    coachMessage = state.rebalanceState.coachMessage,
-                    compensations = state.rebalanceState.compensations,
-                    onResetToDefault = { viewModel.resetRebalance() }
-                )
-            }
-        }
-
-        // Report Skipped / Unavailable / Painful Exercise Bar
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(Surface)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(16.dp))
-                    .padding(14.dp)
+            SectionLabel(
+                text = if (isRest) "Today's recovery" else "Exercises",
+                modifier = Modifier.padding(horizontal = 20.dp)
             ) {
-                Text(
-                    text = "DYNAMIC REBALANCER & EQUIPMENT FALLBACK",
-                    color = Volt,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = "Report equipment busy or pain (e.g., \"Wrist hurts, skip Incline DB\", \"No Lat Pulldown machine\"):",
-                    color = TextSecondary,
-                    fontSize = 11.sp
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = promptInput,
-                        onValueChange = { promptInput = it },
-                        placeholder = {
-                            Text(
-                                text = "e.g., No Lat Pulldown machine today",
-                                color = TextSecondary,
-                                fontSize = 12.sp
-                            )
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Ink,
-                            unfocusedContainerColor = Ink,
-                            focusedBorderColor = Volt,
-                            unfocusedBorderColor = BorderStroke,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White
-                        ),
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = {
-                            viewModel.rebalanceFromPrompt(promptInput)
-                            promptInput = ""
-                        })
-                    )
-
-                    Spacer(modifier = Modifier.width(8.dp))
-
-                    IconButton(
-                        onClick = {
-                            viewModel.rebalanceFromPrompt(promptInput)
-                            promptInput = ""
-                        },
-                        enabled = promptInput.isNotBlank(),
-                        modifier = Modifier
-                            .size(42.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(if (promptInput.isNotBlank()) Volt else Surface)
-                    ) {
-                        Icon(
-                            imageVector = androidx.compose.material.icons.Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Submit rebalance prompt",
-                            tint = if (promptInput.isNotBlank()) Ink else TextSecondary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                }
+                Text("${exercises.size} movements", style = MaterialTheme.typography.bodySmall, color = TextMid)
             }
         }
 
-        // Section Title: Exercises
-        item {
-            Text(
-                text = "SCHEDULED MOVEMENTS (${state.adjustedPlan.exercises.size})",
-                color = Color.White,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 0.5.sp
-            )
-        }
-
-        // Exercise List Cards
-        items(state.adjustedPlan.exercises, key = { it.baseExercise.id }) { adjExercise ->
-            val isCompleted = state.completedExerciseIds.contains(adjExercise.baseExercise.id)
-            val isSkipped = state.rebalanceState.isRebalanced &&
-                    adjExercise.baseExercise.id == state.rebalanceState.skippedExerciseId
-
+        items(exercises, key = { it.baseExercise.id }) { ex ->
+            val skipped = state.rebalanceState.isRebalanced && ex.baseExercise.id == state.rebalanceState.skippedExerciseId
             ExerciseCard(
-                exercise = adjExercise,
-                isCompleted = isCompleted,
-                isSkipped = isSkipped,
-                onToggleCompleted = { viewModel.toggleExerciseCompleted(adjExercise.baseExercise.id) },
-                onSkip = { viewModel.skipExercise(adjExercise.baseExercise.id) },
-                onView3D = { onNavigateToViewer(adjExercise.baseExercise.name) }
+                exercise = ex,
+                isCompleted = ex.baseExercise.id in state.completedExerciseIds,
+                isSkipped = skipped,
+                isRest = isRest,
+                onToggleCompleted = { viewModel.toggleExerciseCompleted(ex.baseExercise.id) },
+                onSkip = { viewModel.skipExercise(ex.baseExercise.id) },
+                onView3D = { onNavigateToViewer(ex.baseExercise.id) },
+                modifier = Modifier.padding(horizontal = 16.dp)
             )
-        }
-
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
 
 @Composable
+@ReadOnlyComposable
+private fun triggerColor(trigger: String): Color = when {
+    trigger.contains("Carb", ignoreCase = true) -> Warning
+    trigger.contains("Protein", ignoreCase = true) -> Danger
+    else -> Info
+}
+
+@Composable
+private fun DayPill(
+    number: Int,
+    label: String,
+    selected: Boolean,
+    isRest: Boolean,
+    onClick: () -> Unit
+) {
+    val bg by animateColorAsState(if (selected) Ignite else Surface1, label = "dayBg")
+    val fg by animateColorAsState(if (selected) OnIgnite else TextHigh, label = "dayFg")
+    Column(
+        modifier = Modifier
+            .widthIn(min = 76.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(bg)
+            .border(1.dp, if (selected) Ignite else Outline, RoundedCornerShape(18.dp))
+            .clickable(role = Role.Tab, onClick = onClick)
+            .padding(vertical = 12.dp, horizontal = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            "DAY $number",
+            style = MaterialTheme.typography.labelSmall,
+            color = if (selected) OnIgnite.copy(alpha = 0.7f) else TextLow
+        )
+        Spacer(Modifier.height(4.dp))
+        if (isRest) {
+            Icon(Icons.Filled.SelfImprovement, contentDescription = null, tint = fg, modifier = Modifier.size(20.dp))
+        } else {
+            Text(
+                label,
+                style = MaterialTheme.typography.labelLarge,
+                color = fg,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+private fun formatMuscle(raw: String): String =
+    raw.lowercase().replace('_', ' ').replaceFirstChar { it.uppercase() }
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
 private fun ExerciseCard(
     exercise: AdjustedExercise,
     isCompleted: Boolean,
     isSkipped: Boolean,
+    isRest: Boolean,
     onToggleCompleted: () -> Unit,
     onSkip: () -> Unit,
-    onView3D: () -> Unit
+    onView3D: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val borderColor = when {
-        isSkipped -> Ember.copy(alpha = 0.4f)
-        isCompleted -> SuccessGreen.copy(alpha = 0.5f)
-        exercise.isCarbBonusApplied -> Volt.copy(alpha = 0.6f)
-        exercise.isProteinCapApplied -> Ember.copy(alpha = 0.6f)
-        else -> BorderStroke
+    val base = exercise.baseExercise
+    val border = when {
+        isCompleted -> Success.copy(alpha = 0.45f)
+        isSkipped -> Outline
+        else -> Outline
     }
-
-    Box(
-        modifier = Modifier
+    HgCard(
+        modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(16.dp))
-            .background(Panel)
-            .border(1.dp, borderColor, RoundedCornerShape(16.dp))
-            .padding(14.dp)
+            .alpha(if (isSkipped) 0.6f else 1f),
+        borderColor = border,
+        contentPadding = PaddingValues(12.dp)
     ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+        Row {
+            // Live 3D preview; tapping opens the full Form Lab.
+            Box(
+                modifier = Modifier
+                    .width(92.dp)
+                    .height(112.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .clickable(role = Role.Button, onClickLabel = "Open 3D form guide", onClick = onView3D)
             ) {
-                // Left: Completion check & Exercise Title
-                Row(
-                    modifier = Modifier.weight(1f),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(30.dp)
-                            .clip(CircleShape)
-                            .background(if (isCompleted) SuccessGreen else Surface)
-                            .border(1.5.dp, if (isCompleted) SuccessGreen else Muted, CircleShape)
-                            .clickable { if (!isSkipped) onToggleCompleted() },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        if (isCompleted) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Completed",
-                                tint = Ink,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(10.dp))
-
-                    Column {
-                        Text(
-                            text = exercise.baseExercise.name,
-                            color = if (isCompleted || isSkipped) TextSecondary else Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold,
-                            style = if (isCompleted) androidx.compose.ui.text.TextStyle(
-                                textDecoration = androidx.compose.ui.text.style.TextDecoration.LineThrough
-                            ) else androidx.compose.ui.text.TextStyle()
-                        )
-                        Text(
-                            text = "${exercise.baseExercise.targetMuscle.name} · Rest ${exercise.baseExercise.restSeconds}s",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                // Right: Sets & Reps
-                Column(horizontalAlignment = Alignment.End) {
-                    if (isSkipped) {
-                        Text(
-                            text = "SKIPPED",
-                            color = Ember,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                    } else {
-                        Text(
-                            text = "${exercise.effectiveSets} SETS",
-                            color = when {
-                                exercise.isCarbBonusApplied -> Volt
-                                exercise.isProteinCapApplied -> Ember
-                                else -> Volt
-                            },
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Black
-                        )
-                        Text(
-                            text = exercise.effectiveReps,
-                            color = Color.White,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Adjustment notes & Form cues
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                exercise.adjustmentNotes.forEach { note ->
-                    val noteColor = when {
-                        note.contains("+1 set", true) || note.contains("AI Rebalanced", true) -> Volt
-                        note.contains("Capped", true) || note.contains("Deficit", true) -> Ember
-                        else -> TextSecondary
-                    }
-                    Text(
-                        text = "• $note",
-                        color = noteColor,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-
-                Text(
-                    text = "Cue: ${exercise.baseExercise.formNotes}",
-                    color = TextSecondary,
-                    fontSize = 11.sp,
-                    fontStyle = androidx.compose.ui.text.font.FontStyle.Italic,
-                    lineHeight = 15.sp
+                Exercise3DView(
+                    exerciseKey = base.id,
+                    targetMuscles = listOf(base.targetMuscle.name.replace('_', ' ')),
+                    modifier = Modifier.fillMaxSize(),
+                    interactive = false,
+                    showGrid = false,
+                    isPlaying = !isSkipped && !isCompleted
+                )
+                Icon(
+                    Icons.Filled._3dRotation,
+                    contentDescription = null,
+                    tint = TextHigh,
+                    modifier = Modifier
+                        .align(Alignment.BottomEnd)
+                        .padding(6.dp)
+                        .size(16.dp)
                 )
             }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            // Inline 3D Mannequin Preview Thumbnail & Actions Row
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Inline 3D Mannequin Preview (compact canvas)
-                Box(
-                    modifier = Modifier
-                        .size(width = 85.dp, height = 60.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(Ink)
-                        .border(1.dp, BorderStroke, RoundedCornerShape(8.dp))
-                        .clickable { onView3D() }
-                ) {
-                    Mannequin3DView(
-                        exerciseName = exercise.baseExercise.name,
-                        targetMuscles = listOf(exercise.baseExercise.targetMuscle.name),
-                        modifier = Modifier.fillMaxSize(),
-                        isPlaying = true,
-                        speed = 1.0f,
-                        yawDeg = -35f,
-                        pitchDeg = 15f
-                    )
-                }
-
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    // Inline "Skip / Can't Do" Action
-                    if (!isSkipped) {
-                        OutlinedButton(
-                            onClick = onSkip,
-                            shape = RoundedCornerShape(8.dp),
-                            modifier = Modifier.height(34.dp),
-                            colors = ButtonDefaults.outlinedButtonColors(contentColor = Ember),
-                            border = androidx.compose.foundation.BorderStroke(1.dp, Ember.copy(alpha = 0.5f))
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.NotInterested,
-                                contentDescription = null,
-                                tint = Ember,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    base.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    color = if (isCompleted) TextMid else TextHigh,
+                    textDecoration = if (isCompleted) TextDecoration.LineThrough else null,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "${formatMuscle(base.targetMuscle.name)} · Rest ${base.restSeconds}s",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMid
+                )
+                Spacer(Modifier.height(8.dp))
+                if (isSkipped) {
+                    StatusPill("Skipped", Danger, icon = Icons.Filled.Block)
+                } else {
+                    Row(verticalAlignment = Alignment.Bottom) {
+                        if (!isRest) {
                             Text(
-                                text = "Skip / Can't Do",
-                                color = Ember,
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold
+                                "${exercise.effectiveSets}",
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = Ignite
                             )
+                            Text(
+                                " sets",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextMid,
+                                modifier = Modifier.padding(bottom = 3.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
                         }
-                    }
-
-                    // 3D View Action
-                    Button(
-                        onClick = onView3D,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.height(34.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Surface,
-                            contentColor = Volt
-                        )
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Visibility,
-                            contentDescription = null,
-                            tint = Volt,
-                            modifier = Modifier.size(14.dp)
-                        )
-                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = "3D Guide",
-                            color = Volt,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold
+                            exercise.effectiveReps,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold,
+                            color = TextHigh,
+                            modifier = Modifier.padding(bottom = 3.dp)
                         )
+                    }
+                }
+                val notes = exercise.adjustmentNotes.filterNot { it.startsWith("Baseline") || it.startsWith("Skipped") }
+                if (notes.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        notes.forEach { StatusPill(it, triggerColor(it), maxLines = 2) }
                     }
                 }
             }
         }
+
+        Spacer(Modifier.height(10.dp))
+        Text(
+            base.formNotes,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextMid,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(Modifier.height(12.dp))
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (!isSkipped) {
+                CardAction(
+                    text = if (isCompleted) "Done" else "Mark done",
+                    icon = Icons.Filled.Check,
+                    onClick = onToggleCompleted,
+                    container = if (isCompleted) Success.copy(alpha = 0.16f) else Surface2,
+                    content = if (isCompleted) Success else TextHigh,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            CardAction(
+                text = "Form 3D",
+                icon = Icons.Filled._3dRotation,
+                onClick = onView3D,
+                container = Surface2,
+                content = TextHigh,
+                modifier = Modifier.weight(1f)
+            )
+            if (!isSkipped && !isCompleted && !isRest) {
+                // Icon-only so "Mark done" and "Form 3D" keep full labels on narrow phones.
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Surface2)
+                        .clickable(role = Role.Button, onClickLabel = "Skip exercise", onClick = onSkip),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.Block, contentDescription = "Skip ${base.name}", tint = TextMid, modifier = Modifier.size(18.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CardAction(
+    text: String,
+    icon: ImageVector,
+    onClick: () -> Unit,
+    container: Color,
+    content: Color,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier
+            .heightIn(min = 44.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(container)
+            .clickable(role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp),
+        horizontalArrangement = Arrangement.Center,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = content, modifier = Modifier.size(16.dp))
+        Spacer(Modifier.width(6.dp))
+        Text(text, style = MaterialTheme.typography.labelLarge, color = content, maxLines = 1, overflow = TextOverflow.Ellipsis)
     }
 }

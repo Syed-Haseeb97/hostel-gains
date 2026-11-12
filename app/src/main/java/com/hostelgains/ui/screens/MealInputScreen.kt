@@ -1,23 +1,26 @@
 package com.hostelgains.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -25,46 +28,60 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Clear
-import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.DeleteOutline
+import androidx.compose.material.icons.filled.ErrorOutline
+import androidx.compose.material.icons.filled.Grain
 import androidx.compose.material.icons.filled.Restaurant
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.automirrored.filled.TrendingDown
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.hostelgains.domain.nutrition.MealNutrition
-import com.hostelgains.ui.components.AiModeBadge
-import com.hostelgains.ui.components.HeroBarbell3D
-import com.hostelgains.ui.components.HighCarbBadge
-import com.hostelgains.ui.components.HostelGainsLogoBadge
-import com.hostelgains.ui.components.Macro3DChart
-import com.hostelgains.ui.components.ProteinDeficitBadge
-import com.hostelgains.ui.theme.BorderStroke
-import com.hostelgains.ui.theme.CyanAccent
-import com.hostelgains.ui.theme.Ember
-import com.hostelgains.ui.theme.Ink
-import com.hostelgains.ui.theme.Muted
-import com.hostelgains.ui.theme.Panel
-import com.hostelgains.ui.theme.Surface
-import com.hostelgains.ui.theme.TextPrimary
-import com.hostelgains.ui.theme.TextSecondary
-import com.hostelgains.ui.theme.Volt
+import com.hostelgains.ui.components.AiModeChip
 import com.hostelgains.ui.viewmodel.MealLogViewModel
+import com.hostelgains.ui.components.ChoiceChip
+import com.hostelgains.ui.components.HgCard
+import com.hostelgains.ui.components.HgPrimaryButton
+import com.hostelgains.ui.components.HgTextField
+import com.hostelgains.ui.components.MacroBar
+import com.hostelgains.ui.components.ProgressRing
+import com.hostelgains.ui.components.ScreenHeader
+import com.hostelgains.ui.components.SectionLabel
+import com.hostelgains.ui.components.StatusPill
+import com.hostelgains.ui.theme.Canvas0
+import com.hostelgains.ui.theme.CarbColor
+import com.hostelgains.ui.theme.Danger
+import com.hostelgains.ui.theme.FatColor
+import com.hostelgains.ui.theme.Ignite
+import com.hostelgains.ui.theme.ProteinColor
+import com.hostelgains.ui.theme.Surface1
+import com.hostelgains.ui.theme.Surface2
+import com.hostelgains.ui.theme.TextHigh
+import com.hostelgains.ui.theme.TextLow
+import com.hostelgains.ui.theme.TextMid
+import com.hostelgains.ui.theme.Warning
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
 
 val QUICK_MEAL_PRESETS = listOf(
     "Mutton Curry, 1 bowl",
@@ -74,7 +91,6 @@ val QUICK_MEAL_PRESETS = listOf(
     "Paneer Bhurji"
 )
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun MealInputScreen(
     viewModel: MealLogViewModel,
@@ -83,550 +99,326 @@ fun MealInputScreen(
     onUnlockAiClicked: () -> Unit = {}
 ) {
     val state by viewModel.uiState.collectAsState()
+    val summary = state.dailySummary
+    val focusManager = LocalFocusManager.current
+    var confirmClear by rememberSaveable { mutableStateOf(false) }
+    val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
+    val dateLabel = remember {
+        LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, d MMM", Locale.getDefault()))
+    }
+
+    fun submit() {
+        if (state.inputQuery.isBlank() || state.isLoading) return
+        focusManager.clearFocus()
+        viewModel.logMeal()
+    }
 
     LazyColumn(
         modifier = modifier
             .fillMaxSize()
-            .background(Ink)
-            .padding(horizontal = 16.dp),
+            .background(Canvas0),
+        contentPadding = PaddingValues(top = top + 12.dp, bottom = 24.dp, start = 16.dp, end = 16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            Spacer(modifier = Modifier.height(8.dp))
-            // AI Mode Badge
-            AiModeBadge(
-                isPremium = isPremiumAi,
-                modifier = Modifier.clickable { if (!isPremiumAi) onUnlockAiClicked() }
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            // Header
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            ScreenHeader(
+                eyebrow = dateLabel,
+                title = "Fuel",
+                modifier = Modifier.padding(horizontal = 4.dp)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    HostelGainsLogoBadge(size = 46.dp)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = "MESS MEALS",
-                            color = Color.White,
-                            fontSize = 24.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = "AI Macronutrient Calculation & Intake Tracker",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(CircleShape)
-                        .background(Panel)
-                        .border(1.dp, BorderStroke, CircleShape)
-                ) {
-                    HeroBarbell3D(
-                        modifier = Modifier.fillMaxSize(),
-                        isSpinning = true
-                    )
-                }
+                AiModeChip(isPremium = isPremiumAi, onClick = onUnlockAiClicked)
             }
         }
 
-        // Active Trigger Status Badges
+        // ── Energy + macros ───────────────────────────────────────────────────
         item {
-            val hasHighCarb = state.dailySummary.hasHighCarbTrigger
-            val hasProteinDeficit = state.dailySummary.hasProteinDeficitTrigger
-
-            if (hasHighCarb || hasProteinDeficit) {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (hasHighCarb) {
-                        HighCarbBadge(modifier = Modifier.fillMaxWidth())
-                    }
-                    if (hasProteinDeficit) {
-                        ProteinDeficitBadge(modifier = Modifier.fillMaxWidth())
-                    }
-                }
-            }
-        }
-
-        // Daily Macro Summary Card
-        item {
-            DailyMacroSummaryCard(
-                totalCalories = state.dailySummary.totalCalories,
-                targetCalories = state.targetCalories,
-                totalProtein = state.dailySummary.totalProtein,
-                totalCarbs = state.dailySummary.totalCarbs,
-                totalFats = state.dailySummary.totalFats
-            )
-        }
-
-        // 3D Isometric Macro Chart
-        item {
-            Macro3DChart(
-                carbsGrams = state.dailySummary.totalCarbs,
-                carbsTarget = state.targetCarbs,
-                proteinGrams = state.dailySummary.totalProtein,
-                proteinTarget = state.targetProtein,
-                fatGrams = state.dailySummary.totalFats,
-                fatTarget = state.targetFats
-            )
-        }
-
-        // Natural Language Meal Input Box
-        item {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(18.dp))
-                    .background(Panel)
-                    .border(1.dp, BorderStroke, RoundedCornerShape(18.dp))
-                    .padding(16.dp)
-            ) {
-                Text(
-                    text = "LOG MESS MEAL (NATURAL LANGUAGE)",
-                    color = Volt,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 1.sp
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = state.inputQuery,
-                    onValueChange = { viewModel.onQueryChanged(it) },
-                    placeholder = {
-                        Text(
-                            text = "e.g., mutton curry, 4 dry rotis, 4 boiled eggs",
-                            color = TextSecondary,
-                            fontSize = 13.sp
-                        )
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = Surface,
-                        unfocusedContainerColor = Surface,
-                        focusedBorderColor = Volt,
-                        unfocusedBorderColor = BorderStroke,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White
-                    ),
-                    singleLine = false,
-                    maxLines = 3,
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                    keyboardActions = KeyboardActions(onDone = { viewModel.logMeal() })
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (state.errorMessage != null) {
-                        Text(
-                            text = state.errorMessage ?: "",
-                            color = Ember,
-                            fontSize = 11.sp,
-                            modifier = Modifier.weight(1f)
-                        )
-                    } else {
-                        Text(
-                            text = "Powered by AI Nutrition Parser",
-                            color = TextSecondary,
-                            fontSize = 11.sp
-                        )
-                    }
-
-                    Button(
-                        onClick = { viewModel.logMeal() },
-                        enabled = !state.isLoading && state.inputQuery.isNotBlank(),
-                        shape = RoundedCornerShape(10.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Volt,
-                            contentColor = Ink,
-                            disabledContainerColor = Surface,
-                            disabledContentColor = TextSecondary
-                        )
-                    ) {
-                        if (state.isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                color = Ink,
-                                strokeWidth = 2.dp
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                        } else {
-                            Icon(
-                                imageVector = Icons.Default.Add,
-                                contentDescription = null,
-                                modifier = Modifier.size(16.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                        }
-                        Text(
-                            text = "ANALYZE & LOG",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                // Quick Preset Chips
-                Text(
-                    text = "QUICK HOSTEL PRESETS:",
-                    color = TextSecondary,
-                    fontSize = 10.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.5.sp
-                )
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                FlowRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    QUICK_MEAL_PRESETS.forEach { preset ->
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(20.dp))
-                                .background(Surface)
-                                .border(1.dp, BorderStroke, RoundedCornerShape(20.dp))
-                                .clickable { viewModel.logPreset(preset) }
-                                .padding(horizontal = 12.dp, vertical = 6.dp)
+            HgCard(Modifier.fillMaxWidth()) {
+                BoxWithConstraints(Modifier.fillMaxWidth()) {
+                    val cardWidth = maxWidth
+                    val progress = if (state.targetCalories > 0) summary.totalCalories / state.targetCalories.toFloat() else 0f
+                    val ring: @Composable (androidx.compose.ui.unit.Dp) -> Unit = { ringSize ->
+                        ProgressRing(
+                            progress = progress,
+                            color = Ignite,
+                            strokeWidth = 11.dp,
+                            modifier = Modifier.size(ringSize)
                         ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                 Text(
-                                    text = "+",
-                                    color = Volt,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
+                                    "%,d".format(summary.totalCalories),
+                                    style = if (ringSize < 140.dp) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineLarge,
+                                    color = TextHigh,
+                                    maxLines = 1
                                 )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = preset,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium
-                                )
+                                Text("of %,d kcal".format(state.targetCalories), style = MaterialTheme.typography.bodySmall, color = TextMid, maxLines = 1)
                             }
                         }
                     }
+                    val bars: @Composable (Modifier) -> Unit = { m ->
+                        Column(m, verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            MacroBar("Protein", summary.totalProtein, state.targetProtein, ProteinColor)
+                            MacroBar("Carbs", summary.totalCarbs, state.targetCarbs, CarbColor)
+                            MacroBar("Fat", summary.totalFats, state.targetFats, FatColor)
+                        }
+                    }
+                    if (cardWidth < 300.dp) {
+                        // Narrow phones: stack so neither the ring nor the bars get cramped.
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            ring(156.dp)
+                            Spacer(Modifier.height(16.dp))
+                            bars(Modifier.fillMaxWidth())
+                        }
+                    } else {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            ring((cardWidth * 0.42f).coerceIn(120.dp, 150.dp))
+                            Spacer(Modifier.width(16.dp))
+                            bars(Modifier.weight(1f))
+                        }
+                    }
                 }
-            }
-        }
-
-        // Today's Meals Section Header
-        item {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+                Spacer(Modifier.height(14.dp))
+                val remaining = state.targetCalories - summary.totalCalories
                 Text(
-                    text = "TODAY'S LOGGED MEALS (${state.meals.size})",
-                    color = Color.White,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Black,
-                    letterSpacing = 0.5.sp
+                    text = if (remaining >= 0) "%,d kcal left today".format(remaining) else "%,d kcal over target".format(-remaining),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = if (remaining >= 0) TextMid else Warning
                 )
+            }
+        }
 
+        // ── Workout effects from nutrition ────────────────────────────────────
+        if (summary.hasHighCarbTrigger) {
+            item {
+                NoticeCard(
+                    icon = Icons.Filled.Grain,
+                    color = Warning,
+                    title = "Carb surplus",
+                    body = "Extra fuel today: +1 set added to lat pulldowns and squats."
+                )
+            }
+        }
+        if (summary.hasProteinDeficitTrigger) {
+            item {
+                NoticeCard(
+                    icon = Icons.AutoMirrored.Filled.TrendingDown,
+                    color = Danger,
+                    title = "Protein is low",
+                    body = "Training volume is capped at 3 sets to protect recovery. Add eggs, paneer or dal."
+                )
+            }
+        }
+
+        // ── Composer ──────────────────────────────────────────────────────────
+        item {
+            HgCard(Modifier.fillMaxWidth()) {
+                Text("Log a meal", style = MaterialTheme.typography.titleMedium, color = TextHigh)
+                Spacer(Modifier.height(2.dp))
+                Text(
+                    "Describe what you ate in the mess. Macros are calculated for you.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = TextMid
+                )
+                Spacer(Modifier.height(12.dp))
+                HgTextField(
+                    value = state.inputQuery,
+                    onValueChange = viewModel::onQueryChanged,
+                    placeholder = "e.g. mutton curry, 4 rotis, 2 boiled eggs",
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3,
+                    isError = state.errorMessage != null,
+                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                    keyboardActions = KeyboardActions(onDone = { submit() })
+                )
+                state.errorMessage?.let { err ->
+                    Spacer(Modifier.height(8.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ErrorOutline, contentDescription = null, tint = Danger, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(6.dp))
+                        Text(err, style = MaterialTheme.typography.bodySmall, color = Danger)
+                    }
+                }
+                Spacer(Modifier.height(12.dp))
+                Text("Quick add", style = MaterialTheme.typography.labelMedium, color = TextLow)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(QUICK_MEAL_PRESETS) { preset ->
+                        ChoiceChip(
+                            text = preset,
+                            selected = false,
+                            leading = Icons.Filled.Add,
+                            onClick = { viewModel.logPreset(preset) }
+                        )
+                    }
+                }
+                Spacer(Modifier.height(14.dp))
+                HgPrimaryButton(
+                    text = if (state.isLoading) "Calculating…" else "Analyze & log",
+                    onClick = { submit() },
+                    enabled = state.inputQuery.isNotBlank(),
+                    loading = state.isLoading,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        }
+
+        item {
+            SectionLabel(text = "Today's meals", modifier = Modifier.padding(horizontal = 4.dp)) {
                 if (state.meals.isNotEmpty()) {
-                    Text(
-                        text = "Clear All",
-                        color = Ember,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { viewModel.clearAllMeals() }
-                    )
+                    TextButton(onClick = { confirmClear = true }) {
+                        Text("Clear all", color = TextMid)
+                    }
                 }
             }
         }
 
-        // Meal Item Cards
         if (state.meals.isEmpty()) {
             item {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(Panel)
-                        .border(1.dp, BorderStroke, RoundedCornerShape(14.dp))
-                        .padding(24.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Default.Restaurant,
-                            contentDescription = null,
-                            tint = TextSecondary,
-                            modifier = Modifier.size(32.dp)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
+                HgCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(28.dp)) {
+                    Column(Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Box(
+                            Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(Surface2),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(Icons.Filled.Restaurant, contentDescription = null, tint = TextMid)
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        Text("Nothing logged yet", style = MaterialTheme.typography.titleSmall, color = TextHigh)
+                        Spacer(Modifier.height(4.dp))
                         Text(
-                            text = "No meals logged today yet.",
-                            color = TextSecondary,
-                            fontSize = 13.sp
-                        )
-                        Text(
-                            text = "Enter your hostel mess menu above to calculate macros.",
-                            color = Muted,
-                            fontSize = 11.sp
+                            "Log breakfast to start tracking today's macros.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMid
                         )
                     }
                 }
             }
         } else {
             items(state.meals, key = { it.id }) { meal ->
-                MealItemCard(
-                    meal = meal,
-                    onDelete = { viewModel.deleteMeal(meal.id) }
-                )
+                MealCard(meal = meal, onDelete = { viewModel.deleteMeal(meal.id) })
             }
         }
+    }
 
-        item {
-            Spacer(modifier = Modifier.height(16.dp))
-        }
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            containerColor = Surface1,
+            title = { Text("Clear today's meals?", color = TextHigh) },
+            text = { Text("All ${state.meals.size} logged meals and their macros will be removed.", color = TextMid) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearAllMeals(); confirmClear = false }) {
+                    Text("Clear", color = Danger)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text("Cancel", color = TextMid) }
+            }
+        )
     }
 }
 
 @Composable
-private fun DailyMacroSummaryCard(
-    totalCalories: Int,
-    targetCalories: Int,
-    totalProtein: Float,
-    totalCarbs: Float,
-    totalFats: Float
-) {
-    val remaining = (targetCalories - totalCalories).coerceAtLeast(0)
-
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(20.dp))
-            .background(Panel)
-            .border(1.dp, BorderStroke, RoundedCornerShape(20.dp))
-            .padding(18.dp)
+private fun NoticeCard(icon: ImageVector, color: Color, title: String, body: String) {
+    HgCard(
+        modifier = Modifier.fillMaxWidth(),
+        containerColor = color.copy(alpha = 0.08f),
+        borderColor = color.copy(alpha = 0.3f),
+        contentPadding = PaddingValues(14.dp)
     ) {
-        Column {
-            Text(
-                text = "DAILY ENERGY EXPENDITURE",
-                color = TextSecondary,
-                fontSize = 10.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 1.sp
-            )
-
-            Spacer(modifier = Modifier.height(4.dp))
-
-            Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.SpaceBetween,
-                modifier = Modifier.fillMaxWidth()
+        Row(verticalAlignment = Alignment.Top) {
+            Box(
+                Modifier
+                    .size(36.dp)
+                    .clip(CircleShape)
+                    .background(color.copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
             ) {
-                Row(verticalAlignment = Alignment.Bottom) {
+                Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
+            }
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Text(title, style = MaterialTheme.typography.titleSmall, color = TextHigh)
+                Spacer(Modifier.height(2.dp))
+                Text(body, style = MaterialTheme.typography.bodySmall, color = TextMid)
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun MealCard(meal: MealNutrition, onDelete: () -> Unit) {
+    HgCard(Modifier.fillMaxWidth(), contentPadding = PaddingValues(start = 16.dp, top = 12.dp, end = 4.dp, bottom = 14.dp)) {
+        Row(verticalAlignment = Alignment.Top) {
+            Column(Modifier.weight(1f).padding(top = 4.dp)) {
+                Text(
+                    meal.mealName.ifBlank { meal.rawQuery },
+                    style = MaterialTheme.typography.titleMedium,
+                    color = TextHigh,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (meal.items.isNotEmpty()) {
+                    Spacer(Modifier.height(2.dp))
                     Text(
-                        text = "$totalCalories",
-                        color = Volt,
-                        fontSize = 44.sp,
-                        fontWeight = FontWeight.Black,
-                        lineHeight = 44.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "kcal consumed",
-                        color = TextSecondary,
-                        fontSize = 13.sp,
-                        modifier = Modifier.padding(bottom = 6.dp)
+                        meal.items.joinToString(" · ") { "${it.name} (${it.quantityDescription})" },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMid,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
-
-                Text(
-                    text = "$remaining kcal left",
-                    color = Color.White,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    modifier = Modifier.padding(bottom = 6.dp)
-                )
             }
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // 3 Mini macro status pills
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                MacroMiniPill(
-                    label = "CARBS",
-                    value = "${totalCarbs.toInt()}g",
-                    color = Volt,
-                    modifier = Modifier.weight(1f)
-                )
-                MacroMiniPill(
-                    label = "PROTEIN",
-                    value = "${totalProtein.toInt()}g",
-                    color = Ember,
-                    modifier = Modifier.weight(1f)
-                )
-                MacroMiniPill(
-                    label = "FAT",
-                    value = "${totalFats.toInt()}g",
-                    color = CyanAccent,
-                    modifier = Modifier.weight(1f)
-                )
+            Spacer(Modifier.width(8.dp))
+            Column(horizontalAlignment = Alignment.End, modifier = Modifier.padding(top = 4.dp)) {
+                Text("${meal.calories}", style = MaterialTheme.typography.titleLarge, color = TextHigh)
+                Text("kcal", style = MaterialTheme.typography.bodySmall, color = TextLow)
+            }
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Filled.DeleteOutline, contentDescription = "Delete ${meal.mealName}", tint = TextLow)
+            }
+        }
+        Spacer(Modifier.height(10.dp))
+        Row(
+            modifier = Modifier.padding(end = 12.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            MacroChip("Protein", meal.proteinGrams, ProteinColor, Modifier.weight(1f))
+            MacroChip("Carbs", meal.carbsGrams, CarbColor, Modifier.weight(1f))
+            MacroChip("Fat", meal.fatsGrams, FatColor, Modifier.weight(1f))
+        }
+        if (meal.isHighCarb || meal.isLowProtein) {
+            Spacer(Modifier.height(10.dp))
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                if (meal.isHighCarb) StatusPill("Carb surplus", Warning)
+                if (meal.isLowProtein) StatusPill("Low protein", Danger)
             }
         }
     }
 }
 
 @Composable
-private fun MacroMiniPill(
-    label: String,
-    value: String,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    Box(
+private fun MacroChip(label: String, grams: Float, color: Color, modifier: Modifier = Modifier) {
+    Row(
         modifier = modifier
-            .clip(RoundedCornerShape(10.dp))
-            .background(Surface)
-            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(10.dp))
-            .padding(horizontal = 10.dp, vertical = 8.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Surface2)
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
+        Box(
+            Modifier
+                .size(8.dp)
+                .clip(CircleShape)
+                .background(color)
+        )
+        Spacer(Modifier.width(6.dp))
         Column {
-            Text(
-                text = label,
-                color = color,
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Black,
-                letterSpacing = 0.5.sp
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = value,
-                color = Color.White,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-private fun MealItemCard(
-    meal: MealNutrition,
-    onDelete: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(Panel)
-            .border(1.dp, BorderStroke, RoundedCornerShape(14.dp))
-            .padding(14.dp)
-    ) {
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = meal.mealName.ifBlank { meal.rawQuery },
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    if (meal.items.isNotEmpty()) {
-                        Text(
-                            text = meal.items.joinToString(", ") { "${it.name} (${it.quantityDescription})" },
-                            color = TextSecondary,
-                            fontSize = 11.sp,
-                            maxLines = 2
-                        )
-                    }
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "${meal.calories} kcal",
-                        color = Volt,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    IconButton(
-                        onClick = onDelete,
-                        modifier = Modifier.size(24.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Delete,
-                            contentDescription = "Delete meal",
-                            tint = Muted,
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Macro row
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text(
-                    text = "P: ${meal.proteinGrams.toInt()}g",
-                    color = Ember,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "C: ${meal.carbsGrams.toInt()}g",
-                    color = Volt,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-                Text(
-                    text = "F: ${meal.fatsGrams.toInt()}g",
-                    color = CyanAccent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold
-                )
-
-                if (meal.isHighCarb) {
-                    Text(
-                        text = "• Carb Surplus",
-                        color = Volt,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-                if (meal.isLowProtein) {
-                    Text(
-                        text = "• Low Protein",
-                        color = Ember,
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                }
-            }
+            Text("${grams.toInt()} g", style = MaterialTheme.typography.labelLarge, color = TextHigh, maxLines = 1)
+            Text(label, style = MaterialTheme.typography.bodySmall, color = TextMid, maxLines = 1)
         }
     }
 }
