@@ -69,8 +69,13 @@ class GeminiNutritionParser(
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = payload.toRequestBody(mediaType)
 
+        val targetUrl = if (baseUrl.contains("key=")) baseUrl else {
+            val delimiter = if (baseUrl.contains("?")) "&" else "?"
+            "$baseUrl${delimiter}key=$key"
+        }
+
         val request = Request.Builder()
-            .url(baseUrl)
+            .url(targetUrl)
             .addHeader("Content-Type", "application/json")
             .addHeader("x-goog-api-key", key)
             .post(requestBody)
@@ -97,9 +102,9 @@ class GeminiNutritionParser(
     }
 
     private fun buildPrompt(rawDescription: String): String {
-        return "You are an expert sports nutritionist specialized in Indian university hostel mess diets. " +
-                "Analyze the student's logged meal: \"$rawDescription\". " +
-                "Calculate realistic estimated macronutrients: protein (g), carbohydrates (g), fats (g), and total calories. " +
+        return "You are an expert sports nutritionist specialized in Indian university hostel mess diets.\n" +
+                "Analyze the student's logged meal: \"$rawDescription\".\n" +
+                "Note: Input may contain typos, misspellings, or phonetic Indian English / Hinglish slang (e.g. 'tee' for tea, 'chiken' for chicken, 'omlet' for omelette, 'roty' for roti, 'panir' for paneer, 'biskit' for biscuit, 'maggi' for noodles). Understand the user's intent, correct typos automatically, and calculate realistic estimated macronutrients: protein (g), carbohydrates (g), fats (g), and total calories.\n" +
                 "Rules:\n" +
                 "- isHighCarb = true if total carbohydrates >= 60g.\n" +
                 "- isLowProtein = true if total protein < 20g.\n" +

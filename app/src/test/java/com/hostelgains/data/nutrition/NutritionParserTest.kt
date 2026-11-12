@@ -119,6 +119,39 @@ class NutritionParserTest {
     }
 
     @Test
+    fun parseMeal_misspelledTee_accuratelyParsesChaiMacros() = runBlocking {
+        val result = fixtureParser.parseMeal("tee")
+        assertTrue("Typo 'tee' should successfully parse as tea/chai", result.isSuccess)
+
+        val meal = result.getOrThrow()
+        assertEquals(90, meal.calories)
+        assertEquals(2.0f, meal.proteinGrams)
+        assertEquals(14.0f, meal.carbsGrams)
+        assertEquals(3.0f, meal.fatsGrams)
+    }
+
+    @Test
+    fun parseMeal_misspelledTeeAndBiskit_returnsCombinedMacros() = runBlocking {
+        val result = fixtureParser.parseMeal("2 tee and 4 biskit")
+        assertTrue("Typo 'tee' and 'biskit' should parse", result.isSuccess)
+
+        val meal = result.getOrThrow()
+        assertTrue("Should parse 2 items (tea and biscuits)", meal.items.size >= 2)
+        assertTrue("Calories should be >= 200", meal.calories >= 200)
+        assertTrue("Carbs should be parsed", meal.carbsGrams >= 40.0f)
+    }
+
+    @Test
+    fun parseMeal_phoneticSlangChikenRotyOmlet_successfullyParses() = runBlocking {
+        val result = fixtureParser.parseMeal("chiken and 3 roty and omlet")
+        assertTrue("Phonetic slang chiken, roty, omlet should parse", result.isSuccess)
+
+        val meal = result.getOrThrow()
+        assertTrue("Protein should be high (>= 35g)", meal.proteinGrams >= 35.0f)
+        assertTrue("Carbs should be parsed", meal.carbsGrams >= 45.0f)
+    }
+
+    @Test
     fun parseMeal_emptyOrWhitespace_returnsFailure() = runBlocking {
         val emptyResult = fixtureParser.parseMeal("")
         assertTrue("Empty string must fail", emptyResult.isFailure)

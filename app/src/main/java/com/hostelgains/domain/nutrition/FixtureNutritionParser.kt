@@ -39,7 +39,9 @@ open class FixtureNutritionParser : NutritionParser {
     private fun getPreconfiguredMeal(normalized: String, originalQuery: String): MealNutrition? {
         return when {
             // Mutton, Rotis & Eggs
-            normalized.contains("mutton") && (normalized.contains("roti") || normalized.contains("chapati")) && normalized.contains("egg") -> {
+            (normalized.contains("mutton") || normalized.contains("matan") || normalized.contains("muttan")) &&
+                    (normalized.contains("roti") || normalized.contains("roty") || normalized.contains("chapati") || normalized.contains("phulka")) &&
+                    (normalized.contains("egg") || normalized.contains("anda") || normalized.contains("omlet") || normalized.contains("omelet")) -> {
                 MealNutrition(
                     rawQuery = originalQuery,
                     mealName = "Hostel Sunday Special: Mutton, Rotis & Eggs",
@@ -59,9 +61,12 @@ open class FixtureNutritionParser : NutritionParser {
             }
 
             // Dal & Rice
-            (normalized.contains("dal") || normalized.contains("daal")) && (normalized.contains("rice") || normalized.contains("chawal")) &&
-                    !normalized.contains("mutton") && !normalized.contains("chicken") && !normalized.contains("paneer") &&
-                    !normalized.contains("egg") && !normalized.contains("roti") && !normalized.contains("phulka") &&
+            (normalized.contains("dal") || normalized.contains("daal") || normalized.contains("dhal")) &&
+                    (normalized.contains("rice") || normalized.contains("chawal") || normalized.contains("chaawal")) &&
+                    !normalized.contains("mutton") && !normalized.contains("matan") && !normalized.contains("chicken") &&
+                    !normalized.contains("chiken") && !normalized.contains("paneer") && !normalized.contains("panir") &&
+                    !normalized.contains("egg") && !normalized.contains("anda") && !normalized.contains("roti") &&
+                    !normalized.contains("roty") && !normalized.contains("phulka") &&
                     !normalized.contains("paratha") && !normalized.contains("dudh") && !normalized.contains("milk") &&
                     !normalized.contains("dahi") && !normalized.contains("curd") && !normalized.contains("chana") &&
                     !normalized.contains("chapati") -> {
@@ -83,7 +88,8 @@ open class FixtureNutritionParser : NutritionParser {
             }
 
             // Paneer Bhurji & Parathas
-            normalized.contains("paneer") && (normalized.contains("paratha") || normalized.contains("roti")) -> {
+            (normalized.contains("paneer") || normalized.contains("panir") || normalized.contains("panner")) &&
+                    (normalized.contains("paratha") || normalized.contains("roti") || normalized.contains("roty")) -> {
                 MealNutrition(
                     rawQuery = originalQuery,
                     mealName = "Vegetarian Power Breakfast: Paneer Bhurji & Parathas",
@@ -102,8 +108,9 @@ open class FixtureNutritionParser : NutritionParser {
             }
 
             // Boiled Egg Whites & Rotis
-            (normalized.contains("egg white") || (normalized.contains("white") && normalized.contains("egg"))) &&
-                    (normalized.contains("roti") || normalized.contains("chapati")) -> {
+            ((normalized.contains("egg white") || (normalized.contains("white") && (normalized.contains("egg") || normalized.contains("anda"))))) &&
+                    (normalized.contains("roti") || normalized.contains("roty") || normalized.contains("chapati")) &&
+                    !normalized.contains("dal") && !normalized.contains("daal") && !normalized.contains("rice") -> {
                 MealNutrition(
                     rawQuery = originalQuery,
                     mealName = "Lean Fitness Snack: Boiled Egg Whites & Rotis",
@@ -121,8 +128,9 @@ open class FixtureNutritionParser : NutritionParser {
                 )
             }
 
-            // Chai & Samosas
-            (normalized.contains("chai") || normalized.contains("tea")) && normalized.contains("samosa") -> {
+            // Chai & Samosas (including "tee", "chaii", "samose")
+            (normalized.contains("chai") || normalized.contains("tea") || normalized.contains("tee") || normalized.contains("chaii")) &&
+                    (normalized.contains("samosa") || normalized.contains("samose")) -> {
                 MealNutrition(
                     rawQuery = originalQuery,
                     mealName = "Hostel Canteen Snack: Chai & Samosas",
@@ -170,9 +178,10 @@ open class FixtureNutritionParser : NutritionParser {
             }
         }
 
-        // 1. Rotis / Chapatis / Phulkas
-        if (normalized.contains("roti") || normalized.contains("chapati") || normalized.contains("phulka")) {
-            val count = extractCount("(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\\s*(?:dry\\s*)?(?:roti|chapati|phulka)s?", defaultCount = 2)
+        // 1. Rotis / Chapatis / Phulkas (including "roty", "chappati", "fulka")
+        if (normalized.contains("roti") || normalized.contains("roty") || normalized.contains("chapati") ||
+            normalized.contains("chappati") || normalized.contains("phulka") || normalized.contains("fulka")) {
+            val count = extractCount("(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\\s*(?:dry\\s*)?(?:roti|roty|chapati|chappati|phulka|fulka)s?", defaultCount = 2)
             val p = count * 3.0f
             val c = count * 17.0f
             val f = count * 0.5f
@@ -182,30 +191,37 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 2. Eggs (whole vs whites)
-        if (normalized.contains("egg")) {
+        // 2. Eggs / Omelette / Anda (including "omlet", "omlete", "omlette", "anda")
+        if (normalized.contains("egg") || normalized.contains("anda") || normalized.contains("omlet") ||
+            normalized.contains("omlete") || normalized.contains("omlette") || normalized.contains("omelet") || normalized.contains("omelette")) {
             val isWhite = normalized.contains("white")
-            val count = extractCount("(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\\s*(?:boiled\\s*)?egg", defaultCount = 2)
+            val isOmelette = normalized.contains("omlet") || normalized.contains("omelet")
+            val count = extractCount("(\\d+|one|two|three|four|five|six|seven|eight|nine|ten)?\\s*(?:boiled\\s*)?(?:eggs?|andas?|omlets?|omletes?|omlettes?|omelets?|omelettes?)", defaultCount = 2)
             val p = count * if (isWhite) 3.5f else 6.0f
             val c = count * if (isWhite) 0.25f else 0.5f
             val f = count * if (isWhite) 0.05f else 5.0f
             val cal = count * if (isWhite) 17 else 75
-            val label = if (isWhite) "Boiled Egg Whites" else "Boiled Eggs"
+            val label = when {
+                isWhite -> "Boiled Egg Whites"
+                isOmelette -> "Hostel Omelette / Anda"
+                else -> "Boiled Eggs"
+            }
             items.add(FoodItemNutrition(label, "$count eggs", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }
 
-        // 3. Mutton
-        if (normalized.contains("mutton")) {
+        // 3. Mutton (including "matan", "muttan", "gosht")
+        if (normalized.contains("mutton") || normalized.contains("matan") || normalized.contains("muttan") || normalized.contains("gosht")) {
             val p = 24.0f; val c = 6.0f; val f = 16.0f; val cal = 260
             items.add(FoodItemNutrition("Hostel Mutton Curry", "1 serving (150g)", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }
 
-        // 4. Chicken
-        if (normalized.contains("chicken")) {
+        // 4. Chicken (including "chiken", "chikken", "chikn", "murgh")
+        if (normalized.contains("chicken") || normalized.contains("chiken") || normalized.contains("chikken") ||
+            normalized.contains("chikn") || normalized.contains("murgh")) {
             val p = 28.0f; val c = 5.0f; val f = 10.0f; val cal = 220
             items.add(FoodItemNutrition("Hostel Chicken Curry", "1 plate (150g)", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
@@ -213,16 +229,17 @@ open class FixtureNutritionParser : NutritionParser {
         }
 
         // 5. Fish
-        if (normalized.contains("fish")) {
+        if (normalized.contains("fish") || normalized.contains("machhli") || normalized.contains("machli")) {
             val p = 22.0f; val c = 4.0f; val f = 8.0f; val cal = 180
             items.add(FoodItemNutrition("Hostel Fish Curry", "1 plate", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }
 
-        // 6. Dal / Daal / Lentils / Sambar
-        if (normalized.contains("dal") || normalized.contains("daal") || normalized.contains("sambar") || normalized.contains("lentil")) {
-            val count = extractCount("(\\d+|one|two|three)?\\s*(?:katori|bowl|plate)?s?\\s*(?:of\\s*)?(?:dal|daal|sambar)", defaultCount = 1)
+        // 6. Dal / Daal / Lentils / Sambar (including "dhal", "tadka")
+        if (normalized.contains("dal") || normalized.contains("daal") || normalized.contains("dhal") ||
+            normalized.contains("sambar") || normalized.contains("lentil") || normalized.contains("tadka")) {
+            val count = extractCount("(\\d+|one|two|three)?\\s*(?:katori|bowl|plate)?s?\\s*(?:of\\s*)?(?:dal|daal|dhal|sambar)", defaultCount = 1)
             val p = count * 5.5f
             val c = count * 18.0f
             val f = count * 4.5f
@@ -232,9 +249,10 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 7. Rice / Chawal / Biryani / Pulao
-        if (normalized.contains("rice") || normalized.contains("chawal") || normalized.contains("biryani") || normalized.contains("pulao")) {
-            val count = extractCount("(\\d+|one|two|three)?\\s*(?:plate|bowl)?s?\\s*(?:of\\s*)?(?:rice|chawal|biryani|pulao)", defaultCount = 1)
+        // 7. Rice / Chawal / Biryani / Pulao (including "chaawal", "bhaat")
+        if (normalized.contains("rice") || normalized.contains("chawal") || normalized.contains("chaawal") ||
+            normalized.contains("biryani") || normalized.contains("pulao") || normalized.contains("bhaat")) {
+            val count = extractCount("(\\d+|one|two|three)?\\s*(?:plate|bowl)?s?\\s*(?:of\\s*)?(?:rice|chawal|chaawal|biryani|pulao)", defaultCount = 1)
             val isBiryani = normalized.contains("biryani")
             val p = count * if (isBiryani) 10.0f else 5.5f
             val c = count * if (isBiryani) 60.0f else 54.0f
@@ -246,17 +264,17 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 8. Paneer
-        if (normalized.contains("paneer")) {
+        // 8. Paneer (including "panir", "panner")
+        if (normalized.contains("paneer") || normalized.contains("panir") || normalized.contains("panner")) {
             val p = 19.0f; val c = 8.0f; val f = 17.0f; val cal = 260
             items.add(FoodItemNutrition("Paneer Dish", "1 plate", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }
 
-        // 9. Parathas
-        if (normalized.contains("paratha")) {
-            val count = extractCount("(\\d+|one|two|three|four)?\\s*(?:aloo\\s*|paneer\\s*|plain\\s*)?parathas?", defaultCount = 2)
+        // 9. Parathas (including "paratha", "parathe", "paronthe")
+        if (normalized.contains("paratha") || normalized.contains("parathe") || normalized.contains("paronthe")) {
+            val count = extractCount("(\\d+|one|two|three|four)?\\s*(?:aloo\\s*|paneer\\s*|plain\\s*)?paratha?s?", defaultCount = 2)
             val p = count * 3.5f
             val c = count * 22.0f
             val f = count * 6.0f
@@ -266,9 +284,10 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 10. Samosas
-        if (normalized.contains("samosa")) {
-            val count = extractCount("(\\d+|one|two|three|four)?\\s*(?:aloo\\s*)?samosas?", defaultCount = 2)
+        // 10. Samosas (including "samose", "kachori", "patis", "patties")
+        if (normalized.contains("samosa") || normalized.contains("samose") || normalized.contains("kachori") ||
+            normalized.contains("patis") || normalized.contains("patties")) {
+            val count = extractCount("(\\d+|one|two|three|four)?\\s*(?:aloo\\s*)?(?:samosa|samose|kachori|patties)s?", defaultCount = 2)
             val p = count * 2.0f
             val c = count * 24.0f
             val f = count * 9.5f
@@ -278,21 +297,38 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 11. Chai / Tea / Coffee
-        if (normalized.contains("chai") || normalized.contains("tea") || normalized.contains("coffee")) {
-            val count = extractCount("(\\d+|one|two|three)?\\s*(?:cup|glass)?s?\\s*(?:chai|tea|coffee)", defaultCount = 1)
+        // 11. Chai / Tea / Coffee (including "tee", "te", "chaii", "chaai", "koffee")
+        val isTeaOrCoffee = normalized.contains("chai") || normalized.contains("chaii") || normalized.contains("chaai") ||
+                normalized.contains("tea") || normalized.contains("tee") ||
+                normalized.split(" ", ",", "+", "&").any { it == "te" || it == "tee" } ||
+                normalized.contains("coffee") || normalized.contains("coffe") || normalized.contains("koffee")
+        if (isTeaOrCoffee) {
+            val count = extractCount("(\\d+|one|two|three|four)?\\s*(?:cup|cups|glass|glasses)?\\s*(?:of\\s*)?(?:chai|chaii|tea|tee|te|coffee|coffe)", defaultCount = 1)
             val p = count * 2.0f
             val c = count * 14.0f
             val f = count * 3.0f
             val cal = count * 90
-            items.add(FoodItemNutrition("Hostel Chai", "$count cup", p, c, f, cal))
+            items.add(FoodItemNutrition("Hostel Chai / Tea", "$count cup", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }
 
-        // 12. Milk / Dudh
-        if (normalized.contains("milk") || normalized.contains("dudh")) {
-            val count = extractCount("(\\d+|one|two)?\\s*(?:glass|cup)?s?\\s*(?:milk|dudh)", defaultCount = 1)
+        // 12. Biscuits (including "biskit", "biscuit", "parle g", "rusk", "cookies")
+        if (normalized.contains("biskit") || normalized.contains("biscuit") || normalized.contains("parle") ||
+            normalized.contains("rusk") || normalized.contains("cookie") || normalized.contains("cookies")) {
+            val count = extractCount("(\\d+|one|two|three|four|five|six)?\\s*(?:piece|pieces)?\\s*(?:biskit|biscuit|rusk|cookie)s?", defaultCount = 2)
+            val p = count * 0.8f
+            val c = count * 7.0f
+            val f = count * 1.5f
+            val cal = count * 45
+            items.add(FoodItemNutrition("Biscuits / Rusk", "$count pieces", p, c, f, cal))
+            totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
+            tokensRecognized++
+        }
+
+        // 13. Milk / Dudh (including "doodh", "dood")
+        if (normalized.contains("milk") || normalized.contains("dudh") || normalized.contains("doodh") || normalized.contains("dood")) {
+            val count = extractCount("(\\d+|one|two)?\\s*(?:glass|cup)?s?\\s*(?:milk|dudh|doodh)", defaultCount = 1)
             val p = count * 8.0f
             val c = count * 12.0f
             val f = count * 8.0f
@@ -302,8 +338,9 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 13. Curd / Dahi / Yogurt / Lassi
-        if (normalized.contains("curd") || normalized.contains("dahi") || normalized.contains("yogurt") || normalized.contains("lassi")) {
+        // 14. Curd / Dahi / Yogurt / Lassi (including "dhai", "chaas", "buttermilk")
+        if (normalized.contains("curd") || normalized.contains("dahi") || normalized.contains("dhai") ||
+            normalized.contains("yogurt") || normalized.contains("lassi") || normalized.contains("chaas")) {
             val isLassi = normalized.contains("lassi")
             val p = if (isLassi) 6.0f else 4.0f
             val c = if (isLassi) 25.0f else 5.0f
@@ -315,10 +352,60 @@ open class FixtureNutritionParser : NutritionParser {
             tokensRecognized++
         }
 
-        // 14. Chole / Rajma / Chana
+        // 15. Chole / Rajma / Chana
         if (normalized.contains("chole") || normalized.contains("rajma") || normalized.contains("chana")) {
             val p = 12.0f; val c = 35.0f; val f = 6.0f; val cal = 240
             items.add(FoodItemNutrition("Hostel Curry (Chole/Rajma)", "1 bowl", p, c, f, cal))
+            totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
+            tokensRecognized++
+        } else if (normalized.contains("soya") || normalized.contains("soyabean")) {
+            val p = 18.0f; val c = 12.0f; val f = 1.0f; val cal = 130
+            items.add(FoodItemNutrition("Soya Chunks Curry", "1 bowl", p, c, f, cal))
+            totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
+            tokensRecognized++
+        }
+
+        // 16. Maggi / Noodles (including "maggie", "meggi")
+        if (normalized.contains("maggi") || normalized.contains("maggie") || normalized.contains("meggi") || normalized.contains("noodle")) {
+            val count = extractCount("(\\d+|one|two)?\\s*(?:pack|packet|bowl)?s?\\s*(?:maggi|maggie|noodles)", defaultCount = 1)
+            val p = count * 6.0f
+            val c = count * 42.0f
+            val f = count * 13.0f
+            val cal = count * 310
+            items.add(FoodItemNutrition("Maggi Instant Noodles", "$count pack", p, c, f, cal))
+            totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
+            tokensRecognized++
+        }
+
+        // 17. South Indian / Breakfast (Dosa, Idli, Poha, Upma)
+        if (normalized.contains("dosa") || normalized.contains("dhosa") || normalized.contains("idli") ||
+            normalized.contains("idly") || normalized.contains("poha") || normalized.contains("upma")) {
+            val isDosa = normalized.contains("dosa") || normalized.contains("dhosa")
+            val isIdli = normalized.contains("idli") || normalized.contains("idly")
+            val label = when {
+                isDosa -> "Dosa & Chutney"
+                isIdli -> "Steamed Idlis"
+                else -> "Breakfast Poha / Upma"
+            }
+            val p = if (isDosa) 4.0f else if (isIdli) 4.0f else 3.5f
+            val c = if (isDosa) 30.0f else if (isIdli) 28.0f else 38.0f
+            val f = if (isDosa) 5.0f else if (isIdli) 0.5f else 4.0f
+            val cal = if (isDosa) 180 else if (isIdli) 140 else 200
+            items.add(FoodItemNutrition(label, "1 portion", p, c, f, cal))
+            totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
+            tokensRecognized++
+        }
+
+        // 18. Fruits / Fitness Supplements (Banana, Whey Shake)
+        if (normalized.contains("banana") || normalized.contains("kela") || normalized.contains("apple") ||
+            normalized.contains("whey") || normalized.contains("shake") || normalized.contains("scoop")) {
+            val isShake = normalized.contains("whey") || normalized.contains("shake") || normalized.contains("scoop")
+            val label = if (isShake) "Whey Protein Shake" else "Fresh Banana / Fruit"
+            val p = if (isShake) 25.0f else 1.3f
+            val c = if (isShake) 3.0f else 27.0f
+            val f = if (isShake) 1.5f else 0.3f
+            val cal = if (isShake) 130 else 105
+            items.add(FoodItemNutrition(label, "1 serving", p, c, f, cal))
             totalProtein += p; totalCarbs += c; totalFats += f; totalCalories += cal
             tokensRecognized++
         }

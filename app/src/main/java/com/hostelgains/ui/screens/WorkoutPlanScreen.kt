@@ -93,9 +93,12 @@ import com.hostelgains.ui.three.Exercise3DView
 import com.hostelgains.ui.viewmodel.WorkoutViewModel
 
 private val QUICK_ISSUES = listOf(
+    "Swap squats for leg press",
+    "Add 3 sets of hammer curls",
+    "Dumbbell only today",
+    "Shorten workout to 30 mins",
     "No lat pulldown machine today",
-    "Wrist hurts on presses",
-    "Squat rack is busy"
+    "Wrist hurts on presses"
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -294,19 +297,20 @@ fun WorkoutPlanScreen(
                     coachMessage = state.rebalanceState.coachMessage,
                     compensations = state.rebalanceState.compensations,
                     onResetToDefault = { viewModel.resetRebalance() },
+                    isCustomized = state.rebalanceState.isCustomized,
                     modifier = Modifier.padding(horizontal = 16.dp)
                 )
             }
         }
 
-        // ── Rebalancer prompt ─────────────────────────────────────────────────
+        // ── AI Workout Customizer prompt ──────────────────────────────────────
         if (!isRest) {
             item {
                 HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                    Text("Something not available?", style = MaterialTheme.typography.titleMedium, color = TextHigh)
+                    Text("Customize Today's Workout with AI", style = MaterialTheme.typography.titleMedium, color = TextHigh)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Tell the coach and the volume is moved to a similar exercise.",
+                        "Ask your coach to swap, add, or adjust exercises (e.g. 'swap squats for leg press', 'add 3 sets of curls', 'dumbbell only').",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMid
                     )
@@ -315,7 +319,7 @@ fun WorkoutPlanScreen(
                         HgTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
-                            placeholder = "e.g. Lat pulldown is taken",
+                            placeholder = "e.g. Swap squats for leg press",
                             singleLine = true,
                             maxLines = 1,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -335,7 +339,7 @@ fun WorkoutPlanScreen(
                                 disabledContentColor = TextLow
                             )
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Rebalance workout")
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Customize workout")
                         }
                     }
                     Spacer(Modifier.height(10.dp))

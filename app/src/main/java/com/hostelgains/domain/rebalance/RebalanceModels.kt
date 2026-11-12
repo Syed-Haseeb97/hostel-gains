@@ -2,6 +2,7 @@ package com.hostelgains.domain.rebalance
 
 import com.hostelgains.domain.nutrition.DailyMacroSummary
 import com.hostelgains.domain.workout.AdjustedWorkoutPlan
+import com.hostelgains.domain.workout.Exercise
 import com.hostelgains.domain.workout.WorkoutDayPlan
 
 /**
@@ -23,6 +24,16 @@ data class RebalanceResult(
     val compensations: List<ExerciseCompensation>,
     val coachMessage: String,
     val isAiGenerated: Boolean
+)
+
+/**
+ * Result of customizing today's workout plan (swapping, adding, removing, or modifying exercises).
+ */
+data class CustomizedWorkoutResult(
+    val customizedExercises: List<Exercise>,
+    val coachMessage: String,
+    val reason: String = "",
+    val isAiGenerated: Boolean = false
 )
 
 /**
@@ -54,4 +65,15 @@ interface WorkoutRebalancer {
         rebalanceResult: RebalanceResult?,
         dailyMacros: DailyMacroSummary
     ): AdjustedWorkoutPlan
+
+    /**
+     * Dynamically customizes, swaps, adds, removes, or modifies exercises in [dayPlan]
+     * based on user's natural language request (e.g. "swap squats for leg press", "add 3 sets of curls", "dumbbell only today").
+     */
+    suspend fun customizeWorkout(
+        dayPlan: WorkoutDayPlan,
+        userPrompt: String
+    ): Result<CustomizedWorkoutResult> {
+        return Result.failure(UnsupportedOperationException("Workout customization not implemented"))
+    }
 }

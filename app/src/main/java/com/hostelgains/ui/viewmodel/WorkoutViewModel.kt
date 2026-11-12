@@ -32,7 +32,9 @@ data class RebalanceState(
     val reason: String = "",
     val coachMessage: String = "",
     val compensations: List<CompensationItemUi> = emptyList(),
-    val isCardExpanded: Boolean = true
+    val isCardExpanded: Boolean = true,
+    val isCustomized: Boolean = false,
+    val customizedExercises: List<Exercise>? = null
 )
 
 data class WorkoutUiState(
@@ -213,45 +215,95 @@ class WorkoutViewModel(
 
     fun resetRebalance() = undoRebalance()
 
+    fun customizeWorkout(prompt: String) = rebalanceFromPrompt(prompt)
+
     fun rebalanceFromPrompt(prompt: String) {
         val trimmed = prompt.trim()
         if (trimmed.isEmpty()) return
 
         val dayPlan = dynamicWorkoutRepository.getDayPlan(_selectedDayIndex + 1, _activeBuild)
-        val matchedExercise = dayPlan.exercises.firstOrNull { ex ->
-            val lowerPrompt = trimmed.lowercase()
-            val lowerName = ex.name.lowercase()
-            when {
-                lowerName.contains("lat pulldown") && (lowerPrompt.contains("lat pulldown") || lowerPrompt.contains("pulldown") || lowerPrompt.contains("machine")) -> true
-                lowerName.contains("incline dumbbell press") && (lowerPrompt.contains("incline db") || lowerPrompt.contains("incline press") || lowerPrompt.contains("wrist") || lowerPrompt.contains("press")) -> true
-                lowerName.contains("squat") && (lowerPrompt.contains("squat") || lowerPrompt.contains("leg")) -> true
-                lowerName.contains("curl") && lowerPrompt.contains("curl") -> true
-                lowerName.contains("row") && lowerPrompt.contains("row") -> true
-                lowerName.contains("lateral raise") && lowerPrompt.contains("lateral") -> true
-                else -> lowerPrompt.contains(lowerName)
+        val lowerPrompt = trimmed.lowercase()
+
+        val isCustomization = lowerPrompt.contains("swap") || lowerPrompt.contains("replace") ||
+                lowerPrompt.contains("add ") || lowerPrompt.startsWith("add") ||
+                lowerPrompt.contains("remove ") || lowerPrompt.startsWith("remove") ||
+                lowerPrompt.contains("drop ") || lowerPrompt.startsWith("drop") ||
+                lowerPrompt.contains("dumbbell only") || lowerPrompt.contains("only db") ||
+                lowerPrompt.contains("shorten") || lowerPrompt.contains("deload") ||
+                lowerPrompt.contains("light day") || lowerPrompt.contains("heavy day") ||
+                lowerPrompt.contains("instead of")
+
+        if (!isCustomization) {
+            val matchedExercise = dayPlan.exercises.firstOrNull { ex ->
+                val lowerName = ex.name.lowercase()
+                when {
+                    lowerName.contains("lat pulldown") && (lowerPrompt.contains("lat pulldown") || lowerPrompt.contains("pulldown") || lowerPrompt.contains("machine")) -> true
+                    lowerName.contains("incline dumbbell press") && (lowerPrompt.contains("incline db") || lowerPrompt.contains("incline press") || lowerPrompt.contains("wrist") || lowerPrompt.contains("press")) -> true
+                    lowerName.contains("squat") && (lowerPrompt.contains("squat") || lowerPrompt.contains("leg")) -> true
+                    lowerName.contains("curl") && lowerPrompt.contains("curl") -> true
+                    lowerName.contains("row") && lowerPrompt.contains("row") -> true
+                    lowerName.contains("lateral raise") && lowerPrompt.contains("lateral") -> true
+                    else -> lowerPrompt.contains(lowerName)
+                }
+            } ?: dayPlan.exercises.firstOrNull() ?: return
+
+            val reason = when {
+                trimmed.contains("wrist", ignoreCase = true) || trimmed.contains("hurt", ignoreCase = true) || trimmed.contains("pain", ignoreCase = true) -> "Joint/wrist strain reported"
+                trimmed.contains("machine", ignoreCase = true) || trimmed.contains("busy", ignoreCase = true) || trimmed.contains("occupied", ignoreCase = true) -> "Equipment unavailable in gym"
+                else -> trimmed
             }
-        } ?: dayPlan.exercises.firstOrNull() ?: return
 
-        val reason = when {
-            trimmed.contains("wrist", ignoreCase = true) || trimmed.contains("hurt", ignoreCase = true) || trimmed.contains("pain", ignoreCase = true) -> "Joint/wrist strain reported"
-            trimmed.contains("machine", ignoreCase = true) || trimmed.contains("busy", ignoreCase = true) || trimmed.contains("occupied", ignoreCase = true) -> "Equipment unavailable in gym"
-            else -> trimmed
-        }
+            // Apply immediate deterministic compensation for instant UI response and test stability
+            skipExercise(matchedExercise.id, reason)
 
-        // Apply immediate deterministic compensation for instant UI response and test stability
-        skipExercise(matchedExercise.id, reason)
-
-        // If Gemini AI is connected, enrich the coach message and rationale asynchronously
-        val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
-        if (!apiKey.isNullOrBlank()) {
+            // If Gemini AI is connected, enrich the coach message and rationale asynchronously
+            val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
+            if (!apiKey.isNullOrBlank()) {
+                scope.launch {
+                    val result = workoutRebalancer.rebalanceWorkout(dayPlan, matchedExercise.id, trimmed)
+                    result.onSuccess { rebalanceResult ->
+                        if (rebalanceResult.isAiGenerated) {
+                            val cur = _rebalanceState
+                            if (cur.isRebalanced && cur.skippedExerciseId == matchedExercise.id) {
+                                val newRebalance = cur.copy(
+                                    coachMessage = rebalanceResult.coachMessage
+                                )
+                                updateState(rebalance = newRebalance)
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Apply immediate deterministic customization
             scope.launch {
-                val result = workoutRebalancer.rebalanceWorkout(dayPlan, matchedExercise.id, trimmed)
-                result.onSuccess { rebalanceResult ->
-                    if (rebalanceResult.isAiGenerated) {
-                        val cur = _rebalanceState
-                        if (cur.isRebalanced && cur.skippedExerciseId == matchedExercise.id) {
-                            val newRebalance = cur.copy(
-                                coachMessage = rebalanceResult.coachMessage
+                val offlineCustomizer = com.hostelgains.domain.rebalance.OfflineWorkoutRebalancer()
+                val offlineResult = offlineCustomizer.customizeWorkout(dayPlan, trimmed)
+                offlineResult.onSuccess { res ->
+                    val newRebalance = RebalanceState(
+                        isRebalanced = true,
+                        isCustomized = true,
+                        reason = res.reason.ifEmpty { trimmed },
+                        coachMessage = res.coachMessage,
+                        customizedExercises = res.customizedExercises,
+                        isCardExpanded = true
+                    )
+                    updateState(rebalance = newRebalance)
+                }
+
+                // If Gemini AI is connected, invoke dynamic AI customization asynchronously
+                val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
+                if (!apiKey.isNullOrBlank()) {
+                    val geminiResult = workoutRebalancer.customizeWorkout(dayPlan, trimmed)
+                    geminiResult.onSuccess { res ->
+                        if (res.isAiGenerated) {
+                            val newRebalance = RebalanceState(
+                                isRebalanced = true,
+                                isCustomized = true,
+                                reason = res.reason.ifEmpty { trimmed },
+                                coachMessage = res.coachMessage,
+                                customizedExercises = res.customizedExercises,
+                                isCardExpanded = true
                             )
                             updateState(rebalance = newRebalance)
                         }
@@ -266,8 +318,24 @@ class WorkoutViewModel(
         summary: DailyMacroSummary,
         rebalance: RebalanceState
     ): AdjustedWorkoutPlan {
-        val normalAdjusted = compensatoryEngine.evaluateWorkout(basePlan, summary)
-        if (!rebalance.isRebalanced || rebalance.skippedExerciseId == null) {
+        val effectivePlan = if (rebalance.isCustomized && rebalance.customizedExercises != null) {
+            basePlan.copy(exercises = rebalance.customizedExercises)
+        } else {
+            basePlan
+        }
+
+        val normalAdjusted = compensatoryEngine.evaluateWorkout(effectivePlan, summary)
+        if (!rebalance.isRebalanced) {
+            return normalAdjusted
+        }
+
+        if (rebalance.isCustomized) {
+            return normalAdjusted.copy(
+                activeTriggers = normalAdjusted.activeTriggers + "AI Customized: ${rebalance.reason}"
+            )
+        }
+
+        if (rebalance.skippedExerciseId == null) {
             return normalAdjusted
         }
 

@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -190,6 +191,47 @@ class WorkoutViewModelTest {
         assertNotNull(pushups)
         // Baseline 3 + 2 = 5 sets
         assertEquals(5, pushups!!.effectiveSets)
+    }
+
+    @Test
+    fun testCustomizeWorkout_swapSquatsForLegPress() {
+        viewModel.selectDay(2) // Day 3: Legs & Core
+        viewModel.rebalanceFromPrompt("swap squats for leg press")
+        Thread.sleep(50)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.rebalanceState.isRebalanced)
+        assertTrue(state.rebalanceState.isCustomized)
+
+        val legPress = state.adjustedPlan.exercises.find { it.baseExercise.name.contains("Leg Press") }
+        assertNotNull("Leg Press should replace squats", legPress)
+
+        val squats = state.adjustedPlan.exercises.find { it.baseExercise.name.contains("Goblet Squats") || it.baseExercise.name.contains("Barbell Squats") }
+        assertNull("Squats should be swapped out", squats)
+    }
+
+    @Test
+    fun testCustomizeWorkout_addHammerCurls() {
+        viewModel.selectDay(0) // Day 1: Pull A
+        val initialCount = viewModel.uiState.value.adjustedPlan.exercises.size
+        viewModel.rebalanceFromPrompt("add 3 sets of hammer curls")
+        Thread.sleep(50)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.rebalanceState.isCustomized)
+        assertEquals(initialCount + 1, state.adjustedPlan.exercises.size)
+        assertTrue(state.adjustedPlan.exercises.any { it.baseExercise.name.contains("Hammer Curls") || it.baseExercise.name.contains("Curls") })
+    }
+
+    @Test
+    fun testCustomizeWorkout_shortenWorkout() {
+        viewModel.selectDay(0) // Day 1
+        viewModel.rebalanceFromPrompt("shorten workout to 30 mins")
+        Thread.sleep(50)
+
+        val state = viewModel.uiState.value
+        assertTrue(state.rebalanceState.isCustomized)
+        assertTrue("Shortened workout should have <= 3 exercises", state.adjustedPlan.exercises.size <= 3)
     }
 
     @Test

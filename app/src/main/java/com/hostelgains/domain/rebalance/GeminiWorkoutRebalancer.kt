@@ -57,6 +57,24 @@ class GeminiWorkoutRebalancer(
         }
     }
 
+    override suspend fun customizeWorkout(
+        dayPlan: WorkoutDayPlan,
+        userPrompt: String
+    ): Result<CustomizedWorkoutResult> {
+        val key = (apiKey ?: apiKeyProvider?.invoke() ?: System.getenv("GEMINI_API_KEY"))?.trim()
+        if (key.isNullOrEmpty()) {
+            return fallback.customizeWorkout(dayPlan, userPrompt)
+        }
+
+        return withContext(Dispatchers.IO) {
+            try {
+                executeGeminiCustomizeWorkout(dayPlan, userPrompt, key)
+            } catch (e: Exception) {
+                fallback.customizeWorkout(dayPlan, userPrompt)
+            }
+        }
+    }
+
     override fun harmonizeWithMacros(
         rebalancedPlan: WorkoutDayPlan,
         rebalanceResult: RebalanceResult?,
@@ -76,8 +94,13 @@ class GeminiWorkoutRebalancer(
         val mediaType = "application/json; charset=utf-8".toMediaType()
         val requestBody = payload.toRequestBody(mediaType)
 
+        val targetUrl = if (baseUrl.contains("key=")) baseUrl else {
+            val delimiter = if (baseUrl.contains("?")) "&" else "?"
+            "$baseUrl${delimiter}key=$key"
+        }
+
         val request = Request.Builder()
-            .url(baseUrl)
+            .url(targetUrl)
             .addHeader("Content-Type", "application/json")
             .addHeader("x-goog-api-key", key)
             .post(requestBody)
@@ -100,6 +123,74 @@ class GeminiWorkoutRebalancer(
                 fallback.rebalanceWorkout(dayPlan, skippedExerciseId, userPrompt)
             }
         }
+    }
+
+    private suspend fun executeGeminiCustomizeWorkout(
+        dayPlan: WorkoutDayPlan,
+        userPrompt: String,
+        key: String
+    ): Result<CustomizedWorkoutResult> {
+        val prompt = buildCustomizePrompt(dayPlan, userPrompt)
+        val payload = buildRequestBodyJson(prompt)
+        val mediaType = "application/json; charset=utf-8".toMediaType()
+        val requestBody = payload.toRequestBody(mediaType)
+
+        val targetUrl = if (baseUrl.contains("key=")) baseUrl else {
+            val delimiter = if (baseUrl.contains("?")) "&" else "?"
+            "$baseUrl${delimiter}key=$key"
+        }
+
+        val request = Request.Builder()
+            .url(targetUrl)
+            .addHeader("Content-Type", "application/json")
+            .addHeader("x-goog-api-key", key)
+            .post(requestBody)
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                return fallback.customizeWorkout(dayPlan, userPrompt)
+            }
+
+            val responseBody = response.body.string()
+            if (responseBody.isNullOrBlank()) {
+                return fallback.customizeWorkout(dayPlan, userPrompt)
+            }
+
+            val parsed = parseCustomizeJsonResponse(responseBody, dayPlan)
+            return if (parsed != null) {
+                Result.success(parsed)
+            } else {
+                fallback.customizeWorkout(dayPlan, userPrompt)
+            }
+        }
+    }
+
+    private fun buildCustomizePrompt(dayPlan: WorkoutDayPlan, userPrompt: String): String {
+        val exercisesList = dayPlan.exercises.joinToString("; ") {
+            "${it.id} (${it.name}, target: ${it.targetMuscle.name}, category: ${it.category.name}, baselineSets: ${it.baselineSets}, reps: ${it.repRange})"
+        }
+
+        return "You are an elite bodybuilding coach specializing in university hostel workouts.\n" +
+                "Today's Routine (Day ${dayPlan.dayNumber}: ${dayPlan.dayName}): $exercisesList.\n" +
+                "Student request: \"$userPrompt\".\n" +
+                "Instructions: Customize today's exercises to honor the student's request (e.g. swap an exercise with a requested alternative, add new movements, adjust sets/reps, remove exercises, or convert equipment).\n" +
+                "Return strictly a JSON object with this exact schema:\n" +
+                "{\n" +
+                "  \"coachMessage\": \"string explanation of workout changes and motivation\",\n" +
+                "  \"exercises\": [\n" +
+                "    {\n" +
+                "      \"id\": \"string identifier\",\n" +
+                "      \"name\": \"string exercise name\",\n" +
+                "      \"targetMuscle\": \"LATS|CHEST|BACK|BICEPS|TRICEPS|LATERAL_DELTS|REAR_DELTS|QUADS|HAMSTRINGS|CALVES|CORE\",\n" +
+                "      \"category\": \"COMPOUND_PUSH|COMPOUND_PULL|COMPOUND_LEGS|ISOLATION_DELTS|ISOLATION_ARMS|ISOLATION_LEGS|CORE\",\n" +
+                "      \"baselineSets\": 3,\n" +
+                "      \"repRange\": \"8-12 reps\",\n" +
+                "      \"restSeconds\": 60,\n" +
+                "      \"formNotes\": \"string execution cue\"\n" +
+                "    }\n" +
+                "  ]\n" +
+                "}"
     }
 
     private fun buildPrompt(
@@ -241,6 +332,88 @@ class GeminiWorkoutRebalancer(
             reason = reason,
             compensations = compensations,
             coachMessage = coachMessage,
+            isAiGenerated = true
+        )
+    }
+
+    /**
+     * Parses a structured JSON response from Gemini for customized workout plans.
+     */
+    fun parseCustomizeJsonResponse(jsonString: String, dayPlan: WorkoutDayPlan): CustomizedWorkoutResult? {
+        val trimmed = jsonString.trim()
+        if (trimmed.isEmpty()) return null
+
+        val cleaned = trimmed
+            .removePrefix("```json")
+            .removePrefix("```")
+            .removeSuffix("```")
+            .trim()
+
+        val rootNode = RebalanceJsonParser.parse(cleaned) ?: return null
+
+        val targetNode: RebalanceJsonParser.Node.ObjectNode = if (rootNode["candidates"] != null) {
+            val candidates = (rootNode["candidates"] as? RebalanceJsonParser.Node.ArrayNode)?.list
+            val firstCandidate = candidates?.firstOrNull() as? RebalanceJsonParser.Node.ObjectNode
+            val content = firstCandidate?.get("content") as? RebalanceJsonParser.Node.ObjectNode
+            val parts = (content?.get("parts") as? RebalanceJsonParser.Node.ArrayNode)?.list
+            val firstPart = parts?.firstOrNull() as? RebalanceJsonParser.Node.ObjectNode
+            val rawText = (firstPart?.get("text") as? RebalanceJsonParser.Node.StringNode)?.value ?: return null
+
+            val innerCleaned = rawText.trim()
+                .removePrefix("```json")
+                .removePrefix("```")
+                .removeSuffix("```")
+                .trim()
+            (RebalanceJsonParser.parse(innerCleaned) as? RebalanceJsonParser.Node.ObjectNode) ?: return null
+        } else {
+            (rootNode as? RebalanceJsonParser.Node.ObjectNode) ?: return null
+        }
+
+        val coachMessage = (targetNode["coachMessage"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "Workout adjusted to match your request."
+        val exercisesArray = (targetNode["exercises"] as? RebalanceJsonParser.Node.ArrayNode)?.list
+
+        if (exercisesArray.isNullOrEmpty()) {
+            return null
+        }
+
+        val parsedExercises = mutableListOf<com.hostelgains.domain.workout.Exercise>()
+        for ((idx, elem) in exercisesArray.withIndex()) {
+            if (elem is RebalanceJsonParser.Node.ObjectNode) {
+                val name = (elem["name"] as? RebalanceJsonParser.Node.StringNode)?.value ?: continue
+                val id = (elem["id"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "custom_${name.lowercase().replace(" ", "_").replace("-", "_")}_$idx"
+                val muscleStr = (elem["targetMuscle"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "BACK"
+                val catStr = (elem["category"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "COMPOUND_PULL"
+                val sets = (elem["baselineSets"] as? RebalanceJsonParser.Node.NumberNode)?.value?.toInt() ?: 3
+                val reps = (elem["repRange"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "8-12 reps"
+                val rest = (elem["restSeconds"] as? RebalanceJsonParser.Node.NumberNode)?.value?.toInt() ?: 60
+                val notes = (elem["formNotes"] as? RebalanceJsonParser.Node.StringNode)?.value ?: "Controlled eccentric, maximum mind-muscle connection."
+                val carbEligible = (elem["isCompensatoryEligibleCarb"] as? RebalanceJsonParser.Node.BooleanNode)?.value ?: false
+
+                val muscle = runCatching { com.hostelgains.domain.workout.MuscleGroup.valueOf(muscleStr.uppercase()) }.getOrDefault(com.hostelgains.domain.workout.MuscleGroup.BACK)
+                val category = runCatching { com.hostelgains.domain.workout.ExerciseCategory.valueOf(catStr.uppercase()) }.getOrDefault(com.hostelgains.domain.workout.ExerciseCategory.COMPOUND_PULL)
+
+                parsedExercises.add(
+                    com.hostelgains.domain.workout.Exercise(
+                        id = id,
+                        name = name,
+                        targetMuscle = muscle,
+                        category = category,
+                        baselineSets = sets,
+                        repRange = reps,
+                        restSeconds = rest,
+                        formNotes = notes,
+                        isCompensatoryEligibleCarb = carbEligible
+                    )
+                )
+            }
+        }
+
+        if (parsedExercises.isEmpty()) return null
+
+        return CustomizedWorkoutResult(
+            customizedExercises = parsedExercises,
+            coachMessage = coachMessage,
+            reason = "AI Workout Customization",
             isAiGenerated = true
         )
     }

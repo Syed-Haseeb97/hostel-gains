@@ -400,4 +400,244 @@ class OfflineWorkoutRebalancer : WorkoutRebalancer {
                 "Compensates ${skipped.targetMuscle.name.lowercase()} volume via ${compensated.name}."
         }
     }
+
+    override suspend fun customizeWorkout(
+        dayPlan: WorkoutDayPlan,
+        userPrompt: String
+    ): Result<CustomizedWorkoutResult> {
+        val trimmed = userPrompt.trim()
+        if (trimmed.isEmpty()) {
+            return Result.failure(IllegalArgumentException("Workout request cannot be empty"))
+        }
+
+        val lower = trimmed.lowercase()
+        val currentExercises = dayPlan.exercises.toMutableList()
+
+        // 1. Dumbbell Only / No Barbell
+        if (lower.contains("dumbbell only") || lower.contains("only dumbbell") || lower.contains("no barbell") || lower.contains("only db")) {
+            val converted = currentExercises.map { ex ->
+                when {
+                    ex.name.contains("Barbell Deadlift", ignoreCase = true) || ex.name.contains("Deadlift", ignoreCase = true) ->
+                        ex.copy(name = "Dumbbell Romanian Deadlifts", formNotes = "Hips back, flat spine, dumbbell travel along shins.")
+                    ex.name.contains("Barbell Bench", ignoreCase = true) || (ex.name.contains("Bench", ignoreCase = true) && !ex.name.contains("Dumbbell", ignoreCase = true)) ->
+                        ex.copy(name = "Flat Dumbbell Press", formNotes = "45° elbow tuck, full stretch at chest, press together.")
+                    ex.name.contains("Barbell Row", ignoreCase = true) || ex.name.contains("T-Bar", ignoreCase = true) ->
+                        ex.copy(name = "Single-Arm Dumbbell Rows", formNotes = "Chest braced, pull dumbbell to hip pocket.")
+                    (ex.name.contains("Barbell Squat", ignoreCase = true) || ex.name.contains("Squat", ignoreCase = true)) && !ex.name.contains("Dumbbell", ignoreCase = true) && !ex.name.contains("Goblet", ignoreCase = true) ->
+                        ex.copy(name = "Dumbbell Goblet Squats", formNotes = "Hold dumbbell vertically at chest, full depth.")
+                    ex.name.contains("Barbell Curl", ignoreCase = true) ->
+                        ex.copy(name = "Dumbbell Incline Curls", formNotes = "Supinate wrists at top, controlled 2-sec eccentric.")
+                    ex.name.contains("Military Press", ignoreCase = true) || ex.name.contains("Overhead Press", ignoreCase = true) ->
+                        ex.copy(name = "Seated Dumbbell Shoulder Press", formNotes = "Neutral-to-pronated grip, full extension.")
+                    else -> ex
+                }
+            }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = converted,
+                    coachMessage = "Converted today's routine to 100% Dumbbell-only. No barbells or crowded racks required!",
+                    reason = "Dumbbell-only conversion",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // 2. Shorten workout / Quick session
+        if (lower.contains("shorten") || lower.contains("quick") || lower.contains("less time") || lower.contains("20 min") || lower.contains("30 min")) {
+            val shortened = currentExercises.take(3).map { it.copy(baselineSets = 3) }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = shortened,
+                    coachMessage = "Condensed workout to your top 3 primary compound movements. Rest 60s between sets to finish in under 30 minutes!",
+                    reason = "Express workout (shortened)",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // 3. Deload / Light Day
+        if (lower.contains("light day") || lower.contains("deload") || lower.contains("easy day") || lower.contains("feeling tired")) {
+            val deloaded = currentExercises.map { it.copy(baselineSets = 2, repRange = "12-15 reps") }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = deloaded,
+                    coachMessage = "Deload active: reduced working volume to 2 sets of 12-15 reps per exercise to prioritize joint recovery.",
+                    reason = "Deload / Light session",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // 4. Heavy Day / More Volume
+        if (lower.contains("heavy day") || lower.contains("more volume") || lower.contains("harder") || lower.contains("extra sets")) {
+            val overloaded = currentExercises.map { it.copy(baselineSets = it.baselineSets + 1) }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = overloaded,
+                    coachMessage = "Volume boost applied! Added +1 heavy set to every movement today. Stay hydrated and push near failure.",
+                    reason = "High-volume overload",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // 5. Swap / Replace exercise ("swap X for Y", "replace X with Y", "use Y instead of X")
+        val isSwapRequest = lower.contains("swap") || lower.contains("replace") || lower.contains("instead of")
+        if (isSwapRequest) {
+            val targetExercise = currentExercises.find { ex ->
+                val exName = ex.name.lowercase()
+                when {
+                    exName.contains("squat") && lower.contains("squat") -> true
+                    exName.contains("lat pulldown") && (lower.contains("lat pulldown") || lower.contains("pulldown")) -> true
+                    exName.contains("bench") && lower.contains("bench") -> true
+                    exName.contains("incline") && lower.contains("incline") -> true
+                    exName.contains("curl") && lower.contains("curl") -> true
+                    exName.contains("row") && lower.contains("row") -> true
+                    exName.contains("lateral") && lower.contains("lateral") -> true
+                    exName.contains("deadlift") && lower.contains("deadlift") -> true
+                    exName.contains("press") && lower.contains("press") -> true
+                    else -> lower.contains(exName)
+                }
+            } ?: currentExercises.firstOrNull()
+
+            if (targetExercise != null) {
+                val replacement = when {
+                    lower.contains("leg press") ->
+                        Exercise("custom_leg_press", "Leg Press Machine", MuscleGroup.QUADS, ExerciseCategory.COMPOUND_LEGS, targetExercise.baselineSets, "10-12 reps", 90, "Feet shoulder-width, full depth, drive through midfoot.")
+                    lower.contains("pull up") || lower.contains("pullup") || lower.contains("chin up") ->
+                        Exercise("custom_pullups", "Bodyweight / Weighted Pull-ups", MuscleGroup.LATS, ExerciseCategory.COMPOUND_PULL, targetExercise.baselineSets, "To failure", 90, "Dead hang start, chest to bar, drive elbows down.")
+                    lower.contains("db press") || lower.contains("dumbbell press") ->
+                        Exercise("custom_db_press", "Dumbbell Press", MuscleGroup.CHEST, ExerciseCategory.COMPOUND_PUSH, targetExercise.baselineSets, "8-12 reps", 90, "Tuck elbows 45°, deep pec stretch, press upward.")
+                    lower.contains("db row") || lower.contains("dumbbell row") ->
+                        Exercise("custom_db_rows", "Single-Arm Dumbbell Rows", MuscleGroup.BACK, ExerciseCategory.COMPOUND_PULL, targetExercise.baselineSets, "8-12 reps", 60, "Brace torso on bench, pull dumbbell to hip pocket.")
+                    lower.contains("push up") || lower.contains("pushup") ->
+                        Exercise("custom_pushups", "Incline / Standard Push-ups", MuscleGroup.CHEST, ExerciseCategory.COMPOUND_PUSH, targetExercise.baselineSets, "To failure", 60, "Brace core, chest to floor or bench, explosive press.")
+                    lower.contains("hack squat") ->
+                        Exercise("custom_hack_squat", "Hack Squat / V-Squat", MuscleGroup.QUADS, ExerciseCategory.COMPOUND_LEGS, targetExercise.baselineSets, "8-12 reps", 90, "Back flat against pad, controlled descent, explode up.")
+                    lower.contains("bulgarian") || lower.contains("split squat") ->
+                        Exercise("custom_split_squat", "Bulgarian Split Squats", MuscleGroup.QUADS, ExerciseCategory.COMPOUND_LEGS, targetExercise.baselineSets, "10-12 reps", 90, "Rear foot on bench, sink hips deep, drive through front heel.")
+                    lower.contains("hammer curl") ->
+                        Exercise("custom_hammer_curl", "Dumbbell Hammer Curls", MuscleGroup.BICEPS, ExerciseCategory.ISOLATION_ARMS, targetExercise.baselineSets, "10-12 reps", 60, "Neutral grip, elbows locked at sides.")
+                    lower.contains("lateral raise") ->
+                        Exercise("custom_lat_raise", "Dumbbell Lateral Raises", MuscleGroup.LATERAL_DELTS, ExerciseCategory.ISOLATION_DELTS, targetExercise.baselineSets, "12-15 reps", 60, "Lead with elbows, raise to parallel.")
+                    lower.contains("cable fly") || lower.contains("pec fly") ->
+                        Exercise("custom_cable_fly", "Standing Cable Chest Flyes", MuscleGroup.CHEST, ExerciseCategory.COMPOUND_PUSH, targetExercise.baselineSets, "12-15 reps", 60, "Slight elbow bend, bring hands together in arc.")
+                    else -> {
+                        val candidateName = Regex("(?:for|with|to)\\s+([a-zA-Z\\s]+)", RegexOption.IGNORE_CASE).find(trimmed)?.groupValues?.get(1)?.trim()
+                            ?: "Alternative Movement"
+                        val formattedName = candidateName.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                        Exercise("custom_${candidateName.lowercase().replace(" ", "_")}", formattedName, targetExercise.targetMuscle, targetExercise.category, targetExercise.baselineSets, targetExercise.repRange, targetExercise.restSeconds, "Customized substitution per user request.")
+                    }
+                }
+
+                val index = currentExercises.indexOfFirst { it.id == targetExercise.id }
+                if (index != -1) {
+                    currentExercises[index] = replacement
+                } else {
+                    currentExercises.add(replacement)
+                }
+
+                return Result.success(
+                    CustomizedWorkoutResult(
+                        customizedExercises = currentExercises,
+                        coachMessage = "Swapped out ${targetExercise.name} for ${replacement.name}. Volume and intensity preserved for today's workout!",
+                        reason = "Swapped ${targetExercise.name} -> ${replacement.name}",
+                        isAiGenerated = false
+                    )
+                )
+            }
+        }
+
+        // 6. Add exercise ("add 3 sets of hammer curls", "add dips", "more bicep work")
+        val isAddRequest = lower.contains("add") || lower.contains("include") || lower.contains("more ")
+        if (isAddRequest) {
+            val sets = Regex("(\\d+)\\s*sets?", RegexOption.IGNORE_CASE).find(trimmed)?.groupValues?.get(1)?.toIntOrNull() ?: 3
+            val newEx = when {
+                lower.contains("hammer curl") || lower.contains("bicep curl") || lower.contains("curl") ->
+                    Exercise("custom_add_curls", "Incline Dumbbell Bicep Curls", MuscleGroup.BICEPS, ExerciseCategory.ISOLATION_ARMS, sets, "10-12 reps", 60, "Pin elbows back, maximize bicep peak contraction.")
+                lower.contains("dip") || lower.contains("dips") ->
+                    Exercise("custom_add_dips", "Parallel Bar Dips", MuscleGroup.CHEST, ExerciseCategory.COMPOUND_PUSH, sets, "8-12 reps", 75, "Lean torso forward 30° to target pecs and triceps.")
+                lower.contains("calf") || lower.contains("calves") ->
+                    Exercise("custom_add_calves", "Standing Dumbbell Calf Raises", MuscleGroup.CALVES, ExerciseCategory.ISOLATION_LEGS, sets, "15-20 reps", 45, "Full stretch at bottom, hold 1-sec peak at top.")
+                lower.contains("tricep") || lower.contains("pushdown") ->
+                    Exercise("custom_add_triceps", "Rope Tricep Pushdowns", MuscleGroup.TRICEPS, ExerciseCategory.ISOLATION_ARMS, sets, "10-12 reps", 60, "Flare rope at bottom, squeeze horseshoe triceps.")
+                lower.contains("abs") || lower.contains("core") || lower.contains("leg raise") ->
+                    Exercise("custom_add_abs", "Hanging Knee / Leg Raises", MuscleGroup.CORE, ExerciseCategory.CORE, sets, "12-15 reps", 60, "Roll pelvis upward, avoid swinging.")
+                lower.contains("face pull") ->
+                    Exercise("custom_add_facepull", "Cable Face Pulls", MuscleGroup.REAR_DELTS, ExerciseCategory.ISOLATION_DELTS, sets, "15 reps", 60, "Pull rope to forehead, rotate hands back.")
+                else -> {
+                    val customName = Regex("add\\s+(?:\\d+\\s+sets?\\s+(?:of\\s+)?)?([a-zA-Z\\s]+)", RegexOption.IGNORE_CASE).find(trimmed)?.groupValues?.get(1)?.trim()
+                        ?: "Custom Movement"
+                    val formattedCustom = customName.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                    Exercise("custom_add_${customName.lowercase().replace(" ", "_")}", formattedCustom, MuscleGroup.BACK, ExerciseCategory.COMPOUND_PULL, sets, "10-12 reps", 60, "Custom exercise added per user request.")
+                }
+            }
+            currentExercises.add(newEx)
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = currentExercises,
+                    coachMessage = "Added ${newEx.name} ($sets sets) to today's routine. Make sure to log completion!",
+                    reason = "Added ${newEx.name}",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // 7. Remove / Skip exercise ("remove cable rows", "take out crunches", "drop squats")
+        val isRemoveRequest = lower.contains("remove") || lower.contains("take out") || lower.contains("drop") || lower.contains("skip")
+        if (isRemoveRequest) {
+            val toRemove = currentExercises.find { ex ->
+                val exName = ex.name.lowercase()
+                lower.contains(exName) || (exName.contains("squat") && lower.contains("squat")) ||
+                        (exName.contains("row") && lower.contains("row")) ||
+                        (exName.contains("pulldown") && lower.contains("pulldown")) ||
+                        (exName.contains("curl") && lower.contains("curl")) ||
+                        (exName.contains("press") && lower.contains("press"))
+            }
+            if (toRemove != null) {
+                currentExercises.remove(toRemove)
+                return Result.success(
+                    CustomizedWorkoutResult(
+                        customizedExercises = currentExercises,
+                        coachMessage = "Removed ${toRemove.name} from today's plan per your request.",
+                        reason = "Removed ${toRemove.name}",
+                        isAiGenerated = false
+                    )
+                )
+            }
+        }
+
+        // 8. Joint pain fallback (e.g. "wrist hurts", "shoulder pain")
+        if (lower.contains("wrist") || lower.contains("pain") || lower.contains("hurt") || lower.contains("shoulder")) {
+            val replaced = currentExercises.map { ex ->
+                if (ex.name.contains("Press", ignoreCase = true) || ex.name.contains("Bench", ignoreCase = true)) {
+                    Exercise("custom_pushups_safe", "Incline Push-ups (Joint Friendly)", MuscleGroup.CHEST, ExerciseCategory.COMPOUND_PUSH, ex.baselineSets, "To failure", 60, "Tuck elbows, neutral hand placement to relieve joint stress.")
+                } else if (ex.name.contains("Barbell Curl", ignoreCase = true)) {
+                    Exercise("custom_hammer_curl_safe", "Dumbbell Hammer Curls", MuscleGroup.BICEPS, ExerciseCategory.ISOLATION_ARMS, ex.baselineSets, "10-12 reps", 60, "Neutral grip prevents forearm and wrist strain.")
+                } else {
+                    ex
+                }
+            }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = replaced,
+                    coachMessage = "Substituted joint-stressing movements with biomechanically friendly alternatives to protect your recovery.",
+                    reason = "Joint-friendly modifications",
+                    isAiGenerated = false
+                )
+            )
+        }
+
+        // Default fallback
+        val rebalanceRes = rebalanceWorkout(dayPlan, dayPlan.exercises.firstOrNull()?.id ?: "", trimmed)
+        val coachMsg = rebalanceRes.getOrNull()?.coachMessage ?: "Workout adjusted to match your request."
+        return Result.success(
+            CustomizedWorkoutResult(
+                customizedExercises = currentExercises,
+                coachMessage = coachMsg,
+                reason = trimmed,
+                isAiGenerated = false
+            )
+        )
+    }
 }

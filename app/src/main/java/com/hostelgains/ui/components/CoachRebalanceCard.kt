@@ -59,7 +59,8 @@ fun CoachRebalanceCard(
     coachMessage: String,
     compensations: List<CompensationItemUi>,
     onResetToDefault: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isCustomized: Boolean = false
 ) {
     HgCard(
         modifier = modifier.fillMaxWidth(),
@@ -84,9 +85,13 @@ fun CoachRebalanceCard(
             }
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
-                Text("Plan rebalanced", style = MaterialTheme.typography.titleSmall, color = TextHigh)
                 Text(
-                    "Skipped $skippedExerciseName · $reason",
+                    if (isCustomized) "Workout customized by AI Coach" else "Plan rebalanced",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = TextHigh
+                )
+                Text(
+                    if (isCustomized) reason else "Skipped $skippedExerciseName · $reason",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMid,
                     maxLines = 2
