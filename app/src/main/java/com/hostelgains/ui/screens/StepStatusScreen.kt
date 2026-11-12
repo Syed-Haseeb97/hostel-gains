@@ -88,7 +88,18 @@ fun StepStatusScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         item {
-            ScreenHeader(eyebrow = "Daily movement", title = "Move", modifier = Modifier.padding(horizontal = 4.dp))
+            ScreenHeader(
+                eyebrow = "Daily movement",
+                title = "Move",
+                trailing = {
+                    if (state.isHardwareSensorActive) {
+                        StatusPill(text = "LIVE SENSOR", color = Success)
+                    } else {
+                        StatusPill(text = "STANDBY", color = Ignite)
+                    }
+                },
+                modifier = Modifier.padding(horizontal = 4.dp)
+            )
         }
 
         // ── Progress hero ─────────────────────────────────────────────────────

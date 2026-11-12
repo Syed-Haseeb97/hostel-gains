@@ -1,10 +1,18 @@
 package com.hostelgains.data.nutrition
 
+import com.hostelgains.data.database.MealDao
+import com.hostelgains.data.database.toDomain
+import com.hostelgains.data.database.toEntity
 import com.hostelgains.domain.nutrition.DailyMacroSummary
 import com.hostelgains.domain.nutrition.MealNutrition
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalDate
 
 /**
@@ -51,13 +59,42 @@ interface MealRepository {
 }
 
 /**
- * Thread-safe in-memory implementation of [MealRepository] with reactive [StateFlow] streams.
+ * Robust implementation of [MealRepository] backed by Room database persistence with
+ * high-performance in-memory reactive [StateFlow] caches and ordered write queue.
  */
-class DefaultMealRepository : MealRepository {
+class DefaultMealRepository(
+    private val dao: MealDao? = null,
+    scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+) : MealRepository {
 
     private val lock = Any()
     private val mealsFlows = mutableMapOf<String, MutableStateFlow<List<MealNutrition>>>()
     private val summaryFlows = mutableMapOf<String, MutableStateFlow<DailyMacroSummary>>()
+
+    // Ordered write queue: loads from disk first, then applies writes in order
+    private val writes = Channel<suspend () -> Unit>(Channel.UNLIMITED)
+
+    init {
+        scope.launch {
+            hydrate()
+            for (op in writes) runCatching { op() }
+        }
+    }
+
+    private suspend fun hydrate() {
+        val currentDao = dao ?: return
+        val rows = currentDao.all
+        val byDate = rows.groupBy { it.dateIso }
+        synchronized(lock) {
+            byDate.forEach { (date, entityList) ->
+                val flow = mealsFlows.getOrPut(date) { MutableStateFlow(emptyList()) }
+                val merged = (entityList.map { it.toDomain() } + flow.value).distinctBy { it.id }
+                flow.value = merged
+                val summary = DailyMacroSummary.calculate(date, merged)
+                summaryFlows.getOrPut(date) { MutableStateFlow(summary) }.value = summary
+            }
+        }
+    }
 
     override fun logMeal(meal: MealNutrition, dateIso: String): MealNutrition {
         synchronized(lock) {
@@ -66,20 +103,15 @@ class DefaultMealRepository : MealRepository {
             mealsFlow.value = updatedMeals
 
             val summaryFlow = summaryFlows.getOrPut(dateIso) {
-                MutableStateFlow(
-                    DailyMacroSummary(
-                        dateIso = dateIso,
-                        totalProtein = 0f,
-                        totalCarbs = 0f,
-                        totalFats = 0f,
-                        totalCalories = 0,
-                        hasHighCarbTrigger = false,
-                        hasProteinDeficitTrigger = false,
-                        mealCount = 0
-                    )
-                )
+                MutableStateFlow(DailyMacroSummary.calculate(dateIso, emptyList()))
             }
             summaryFlow.value = DailyMacroSummary.calculate(dateIso, updatedMeals)
+
+            // Queue write to Room
+            writes.trySend {
+                dao?.insert(meal.toEntity(dateIso))
+            }
+
             return meal
         }
     }
@@ -108,24 +140,20 @@ class DefaultMealRepository : MealRepository {
         }
         if (targetIndex == -1) return false
 
+        val target = currentMeals[targetIndex]
         val updatedMeals = currentMeals.toMutableList().apply { removeAt(targetIndex) }
         mealsFlow.value = updatedMeals
 
         val summaryFlow = summaryFlows.getOrPut(dateIso) {
-            MutableStateFlow(
-                DailyMacroSummary(
-                    dateIso = dateIso,
-                    totalProtein = 0f,
-                    totalCarbs = 0f,
-                    totalFats = 0f,
-                    totalCalories = 0,
-                    hasHighCarbTrigger = false,
-                    hasProteinDeficitTrigger = false,
-                    mealCount = 0
-                )
-            )
+            MutableStateFlow(DailyMacroSummary.calculate(dateIso, emptyList()))
         }
         summaryFlow.value = DailyMacroSummary.calculate(dateIso, updatedMeals)
+
+        // Queue delete to Room
+        writes.trySend {
+            dao?.deleteById(target.id)
+        }
+
         return true
     }
 
@@ -140,18 +168,7 @@ class DefaultMealRepository : MealRepository {
     override fun getDailySummary(dateIso: String): StateFlow<DailyMacroSummary> {
         synchronized(lock) {
             return summaryFlows.getOrPut(dateIso) {
-                MutableStateFlow(
-                    DailyMacroSummary(
-                        dateIso = dateIso,
-                        totalProtein = 0f,
-                        totalCarbs = 0f,
-                        totalFats = 0f,
-                        totalCalories = 0,
-                        hasHighCarbTrigger = false,
-                        hasProteinDeficitTrigger = false,
-                        mealCount = 0
-                    )
-                )
+                MutableStateFlow(DailyMacroSummary.calculate(dateIso, emptyList()))
             }.asStateFlow()
         }
     }
@@ -166,19 +183,15 @@ class DefaultMealRepository : MealRepository {
         synchronized(lock) {
             for ((date, flow) in mealsFlows) {
                 flow.value = emptyList()
-                summaryFlows[date]?.value = DailyMacroSummary(
-                    dateIso = date,
-                    totalProtein = 0f,
-                    totalCarbs = 0f,
-                    totalFats = 0f,
-                    totalCalories = 0,
-                    hasHighCarbTrigger = false,
-                    hasProteinDeficitTrigger = false,
-                    mealCount = 0
-                )
+                summaryFlows[date]?.value = DailyMacroSummary.calculate(date, emptyList())
             }
             mealsFlows.clear()
             summaryFlows.clear()
+
+            // Queue clear to Room
+            writes.trySend {
+                dao?.clear()
+            }
         }
     }
 }

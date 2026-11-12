@@ -21,7 +21,8 @@ import java.util.concurrent.TimeUnit
  * 5. On any network timeout, HTTP error, or parsing exception, gracefully falls back to [fallbackParser].
  */
 class GeminiNutritionParser(
-    private val apiKey: String? = System.getenv("GEMINI_API_KEY"),
+    private val apiKey: String? = null,
+    private val apiKeyProvider: (() -> String?)? = null,
     private val client: OkHttpClient = defaultClient,
     private val fallbackParser: NutritionParser = FixtureNutritionParser(),
     private val baseUrl: String = DEFAULT_BASE_URL
@@ -46,8 +47,8 @@ class GeminiNutritionParser(
             return Result.failure(IllegalArgumentException("Meal description cannot be empty or whitespace"))
         }
 
-        // If no API key is provided, gracefully delegate to fallback parser immediately
-        val key = apiKey?.trim()
+        // Check apiKey parameter, dynamic apiKeyProvider lambda, or environment variable
+        val key = (apiKey ?: apiKeyProvider?.invoke() ?: System.getenv("GEMINI_API_KEY"))?.trim()
         if (key.isNullOrEmpty()) {
             return fallbackParser.parseMeal(rawDescription)
         }

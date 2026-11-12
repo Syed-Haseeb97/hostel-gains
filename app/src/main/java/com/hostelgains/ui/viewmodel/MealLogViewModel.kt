@@ -1,11 +1,13 @@
 package com.hostelgains.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import com.hostelgains.data.ApiKeyRepository
 import com.hostelgains.data.nutrition.DefaultMealRepository
 import com.hostelgains.data.nutrition.MealRepository
 import com.hostelgains.data.nutrition.getCurrentDateIso
 import com.hostelgains.domain.nutrition.DailyMacroSummary
 import com.hostelgains.domain.nutrition.FixtureNutritionParser
+import com.hostelgains.domain.nutrition.GeminiNutritionParser
 import com.hostelgains.domain.nutrition.MealNutrition
 import com.hostelgains.domain.nutrition.NutritionParser
 import kotlinx.coroutines.CoroutineScope
@@ -40,12 +42,30 @@ data class MealLogUiState(
  * Shared singleton instance for default app runtime so ViewModels share repository state.
  */
 object AppRepositories {
-    val mealRepository: MealRepository by lazy { DefaultMealRepository() }
+    @Volatile
+    private var customMealRepository: MealRepository? = null
+
+    @Volatile
+    var apiKeyRepository: ApiKeyRepository? = null
+
+    fun init(mealRepo: MealRepository, apiRepo: ApiKeyRepository? = null) {
+        customMealRepository = mealRepo
+        if (apiRepo != null) {
+            apiKeyRepository = apiRepo
+        }
+    }
+
+    val mealRepository: MealRepository
+        get() = customMealRepository ?: synchronized(this) {
+            customMealRepository ?: DefaultMealRepository().also { customMealRepository = it }
+        }
 }
 
 class MealLogViewModel(
     private val mealRepository: MealRepository = AppRepositories.mealRepository,
-    private val nutritionParser: NutritionParser = FixtureNutritionParser(),
+    private val nutritionParser: NutritionParser = GeminiNutritionParser(
+        apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }
+    ),
     private val externalScope: CoroutineScope? = null
 ) : ViewModel() {
 

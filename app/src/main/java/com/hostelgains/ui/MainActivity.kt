@@ -28,11 +28,16 @@ class MainActivity : ComponentActivity() {
             // Notification permission callback - reminders remain scheduled via AlarmManager regardless
         }
 
+    private val requestActivityRecognitionPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
+            // Activity recognition callback for hardware step counter
+        }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        // 1. Arm all 4 daily hostel meal reminders (9:00 AM, 1:45 PM, 5:40 PM, 8:45 PM)
+        // 1. Arm all 5 daily hostel meal & workout reminders
         MealReminderScheduler.scheduleAllReminders(applicationContext)
 
         // 2. Request runtime POST_NOTIFICATIONS permission on Android 13+ (API 33+)
@@ -46,9 +51,40 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        // 3. Build repositories with application Context (never leaks Activity)
+        // 3. Request runtime ACTIVITY_RECOGNITION permission on Android 10+ (API 29+)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            if (ContextCompat.checkSelfPermission(
+                    this,
+                    Manifest.permission.ACTIVITY_RECOGNITION
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                requestActivityRecognitionPermissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
+            }
+        }
+
+        // 4. Build Room database and repositories with application Context (never leaks Activity)
         val apiKeyRepository = ApiKeyRepository(applicationContext)
         apiKeyViewModel = ApiKeyViewModel(apiKeyRepository)
+
+        val db = com.hostelgains.data.database.AppDatabase.getInstance(applicationContext)
+        val mealRepository = com.hostelgains.data.nutrition.DefaultMealRepository(dao = db.mealDao())
+        com.hostelgains.ui.viewmodel.AppRepositories.init(mealRepository, apiKeyRepository)
+
+        val mealLogViewModel = com.hostelgains.ui.viewmodel.MealLogViewModel(
+            mealRepository = mealRepository,
+            nutritionParser = com.hostelgains.domain.nutrition.GeminiNutritionParser(
+                apiKeyProvider = { apiKeyRepository.getApiKey() }
+            )
+        )
+
+        // 5. Hardware Step Tracker with 15-minute periodic WorkManager sync
+        val stepRepository = com.hostelgains.data.steps.StepRepository(applicationContext)
+        val sensorSource = com.hostelgains.data.steps.StepSensorSource(applicationContext)
+        com.hostelgains.data.steps.StepSyncWorker.schedule(applicationContext)
+        val stepTrackerViewModel = com.hostelgains.ui.viewmodel.StepTrackerViewModel(
+            stepRepository = stepRepository,
+            sensorSource = sensorSource
+        )
 
         val profileRepository = com.hostelgains.data.profile.UserProfileRepository(applicationContext)
         val physiqueProfileViewModel = com.hostelgains.ui.viewmodel.PhysiqueProfileViewModel(
@@ -57,10 +93,13 @@ class MainActivity : ComponentActivity() {
         )
         val workoutViewModel = com.hostelgains.ui.viewmodel.WorkoutViewModel(
             dynamicWorkoutRepository = com.hostelgains.domain.workout.DynamicWorkoutRepository(),
-            profileRepository = profileRepository
+            profileRepository = profileRepository,
+            workoutRebalancer = com.hostelgains.domain.rebalance.GeminiWorkoutRebalancer(
+                apiKeyProvider = { apiKeyRepository.getApiKey() }
+            )
         )
 
-        // 4. Handle incoming notification target tab
+        // 6. Handle incoming notification target tab
         parseTargetTab(intent)
 
         setContent {
@@ -69,6 +108,8 @@ class MainActivity : ComponentActivity() {
                     apiKeyViewModel = apiKeyViewModel,
                     physiqueProfileViewModel = physiqueProfileViewModel,
                     workoutViewModel = workoutViewModel,
+                    mealLogViewModel = mealLogViewModel,
+                    stepTrackerViewModel = stepTrackerViewModel,
                     initialTab = selectedTab
                 )
             }

@@ -6,6 +6,8 @@ import com.hostelgains.data.profile.UserProfileRepository
 import com.hostelgains.domain.nutrition.DailyMacroSummary
 import com.hostelgains.domain.physique.PhysiqueBuild
 import com.hostelgains.domain.physique.UserProfile
+import com.hostelgains.domain.rebalance.GeminiWorkoutRebalancer
+import com.hostelgains.domain.rebalance.WorkoutRebalancer
 import com.hostelgains.domain.workout.AdjustedExercise
 import com.hostelgains.domain.workout.AdjustedWorkoutPlan
 import com.hostelgains.domain.workout.CompensatoryEngine
@@ -49,6 +51,9 @@ class WorkoutViewModel(
     private val compensatoryEngine: CompensatoryEngine = DefaultCompensatoryEngine(),
     private val mealRepository: MealRepository = AppRepositories.mealRepository,
     private val profileRepository: UserProfileRepository? = null,
+    private val workoutRebalancer: WorkoutRebalancer = GeminiWorkoutRebalancer(
+        apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }
+    ),
     private val externalScope: CoroutineScope? = null
 ) : ViewModel() {
 
@@ -57,12 +62,16 @@ class WorkoutViewModel(
         workoutRepository: VTaperWorkoutRepository,
         compensatoryEngine: CompensatoryEngine = DefaultCompensatoryEngine(),
         mealRepository: MealRepository = AppRepositories.mealRepository,
+        workoutRebalancer: WorkoutRebalancer = GeminiWorkoutRebalancer(
+            apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }
+        ),
         externalScope: CoroutineScope? = null
     ) : this(
         dynamicWorkoutRepository = DynamicWorkoutRepository(PhysiqueBuild.V_TAPER),
         compensatoryEngine = compensatoryEngine,
         mealRepository = mealRepository,
         profileRepository = null,
+        workoutRebalancer = workoutRebalancer,
         externalScope = externalScope
     )
 
@@ -229,7 +238,27 @@ class WorkoutViewModel(
             else -> trimmed
         }
 
+        // Apply immediate deterministic compensation for instant UI response and test stability
         skipExercise(matchedExercise.id, reason)
+
+        // If Gemini AI is connected, enrich the coach message and rationale asynchronously
+        val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
+        if (!apiKey.isNullOrBlank()) {
+            scope.launch {
+                val result = workoutRebalancer.rebalanceWorkout(dayPlan, matchedExercise.id, trimmed)
+                result.onSuccess { rebalanceResult ->
+                    if (rebalanceResult.isAiGenerated) {
+                        val cur = _rebalanceState
+                        if (cur.isRebalanced && cur.skippedExerciseId == matchedExercise.id) {
+                            val newRebalance = cur.copy(
+                                coachMessage = rebalanceResult.coachMessage
+                            )
+                            updateState(rebalance = newRebalance)
+                        }
+                    }
+                }
+            }
+        }
     }
 
     private fun computeAdjustedPlan(

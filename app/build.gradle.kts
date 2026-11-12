@@ -13,8 +13,8 @@ android {
         applicationId = "com.hostelgains.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = 2
+        versionName = "1.1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -96,6 +96,16 @@ dependencies {
 
     // Encrypted key storage
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
+
+    // Room Database persistence
+    val roomVersion = "2.6.1"
+    implementation("androidx.room:room-runtime:$roomVersion")
+    implementation("androidx.room:room-ktx:$roomVersion")
+    annotationProcessor("androidx.room:room-compiler:$roomVersion")
+
+    // DataStore Preferences & WorkManager for Hardware Step Tracking
+    implementation("androidx.datastore:datastore-preferences:1.1.7")
+    implementation("androidx.work:work-runtime-ktx:2.9.1")
 
     // Testing
     testImplementation("junit:junit:4.13.2")

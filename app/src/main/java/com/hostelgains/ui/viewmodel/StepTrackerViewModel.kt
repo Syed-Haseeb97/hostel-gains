@@ -1,12 +1,18 @@
 package com.hostelgains.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import com.hostelgains.data.steps.StepRepository
+import com.hostelgains.data.steps.StepSensorSource
 import com.hostelgains.domain.steps.DefaultStepAlertEvaluator
 import com.hostelgains.domain.steps.StepAlertEvaluator
 import com.hostelgains.domain.steps.StepAlertResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import java.time.LocalTime
 
 data class StepTrackerUiState(
@@ -23,21 +29,67 @@ data class StepTrackerUiState(
     ),
     val distanceKm: Float = 2.69f,
     val caloriesBurned: Int = 145,
-    val activeMinutes: Int = 32
+    val activeMinutes: Int = 32,
+    val isHardwareSensorActive: Boolean = false
 )
 
 class StepTrackerViewModel(
     private val alertEvaluator: StepAlertEvaluator = DefaultStepAlertEvaluator(),
+    private val stepRepository: StepRepository? = null,
+    private val sensorSource: StepSensorSource? = null,
+    private val externalScope: CoroutineScope? = null,
     initialSteps: Int = 3450,
     initialHour: Int = 18
 ) : ViewModel() {
 
+    private val scope: CoroutineScope
+        get() = externalScope ?: CoroutineScope(Dispatchers.Default)
+
     private val _uiState = MutableStateFlow(
-        createState(initialSteps, initialHour, 0)
+        createState(initialSteps, initialHour, 0, isHardwareSensorActive = sensorSource?.isSensorAvailable == true)
     )
     val uiState: StateFlow<StepTrackerUiState> = _uiState.asStateFlow()
 
-    private fun createState(steps: Int, hour: Int, minute: Int): StepTrackerUiState {
+    init {
+        if (stepRepository != null) {
+            val now = LocalTime.now()
+            _uiState.value = createState(
+                steps = _uiState.value.currentSteps,
+                hour = now.hour,
+                minute = now.minute,
+                isHardwareSensorActive = sensorSource?.isSensorAvailable == true
+            )
+
+            // 1. Observe persistent steps from repository
+            scope.launch {
+                stepRepository.todayStepsFlow.collect { realSteps ->
+                    val cur = _uiState.value
+                    _uiState.value = createState(
+                        steps = realSteps,
+                        hour = cur.simulatedHour,
+                        minute = cur.simulatedMinute,
+                        isHardwareSensorActive = sensorSource?.isSensorAvailable == true
+                    )
+                }
+            }
+
+            // 2. Observe real-time hardware sensor updates if available
+            if (sensorSource != null && sensorSource.isSensorAvailable) {
+                scope.launch {
+                    sensorSource.rawStepFlow.collect { rawCount ->
+                        stepRepository.recordRawSteps(rawCount)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun createState(
+        steps: Int,
+        hour: Int,
+        minute: Int,
+        isHardwareSensorActive: Boolean = false
+    ): StepTrackerUiState {
         val safeSteps = steps.coerceAtLeast(0)
         val alert = alertEvaluator.evaluate(safeSteps, hour, minute)
         val dist = (safeSteps * 0.00078f * 100).toInt() / 100f
@@ -52,33 +104,49 @@ class StepTrackerViewModel(
             alertResult = alert,
             distanceKm = dist,
             caloriesBurned = kcal,
-            activeMinutes = activeMin
+            activeMinutes = activeMin,
+            isHardwareSensorActive = isHardwareSensorActive
         )
     }
 
     fun setSteps(steps: Int) {
         val cur = _uiState.value
-        _uiState.value = createState(steps, cur.simulatedHour, cur.simulatedMinute)
+        _uiState.value = createState(steps, cur.simulatedHour, cur.simulatedMinute, cur.isHardwareSensorActive)
+        if (stepRepository != null) {
+            scope.launch {
+                stepRepository.setManualSteps(steps)
+            }
+        }
     }
 
     fun addSteps(delta: Int) {
         val cur = _uiState.value
-        _uiState.value = createState(cur.currentSteps + delta, cur.simulatedHour, cur.simulatedMinute)
+        _uiState.value = createState(cur.currentSteps + delta, cur.simulatedHour, cur.simulatedMinute, cur.isHardwareSensorActive)
+        if (stepRepository != null) {
+            scope.launch {
+                stepRepository.addSteps(delta)
+            }
+        }
     }
 
     fun setTime(hour: Int, minute: Int = 0) {
         val cur = _uiState.value
-        _uiState.value = createState(cur.currentSteps, hour.coerceIn(0, 23), minute.coerceIn(0, 59))
+        _uiState.value = createState(cur.currentSteps, hour.coerceIn(0, 23), minute.coerceIn(0, 59), cur.isHardwareSensorActive)
     }
 
     fun syncSystemTime() {
         val now = LocalTime.now()
         val cur = _uiState.value
-        _uiState.value = createState(cur.currentSteps, now.hour, now.minute)
+        _uiState.value = createState(cur.currentSteps, now.hour, now.minute, cur.isHardwareSensorActive)
     }
 
     fun resetSteps() {
         val cur = _uiState.value
-        _uiState.value = createState(0, cur.simulatedHour, cur.simulatedMinute)
+        _uiState.value = createState(0, cur.simulatedHour, cur.simulatedMinute, cur.isHardwareSensorActive)
+        if (stepRepository != null) {
+            scope.launch {
+                stepRepository.resetSteps()
+            }
+        }
     }
 }

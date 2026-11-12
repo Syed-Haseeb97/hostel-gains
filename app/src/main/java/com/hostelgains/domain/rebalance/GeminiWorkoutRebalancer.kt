@@ -18,7 +18,8 @@ import java.util.concurrent.TimeUnit
  * [OfflineWorkoutRebalancer] whenever offline, on rate limit, or if no API key is configured.
  */
 class GeminiWorkoutRebalancer(
-    private val apiKey: String? = System.getenv("GEMINI_API_KEY"),
+    private val apiKey: String? = null,
+    private val apiKeyProvider: (() -> String?)? = null,
     private val client: OkHttpClient = defaultClient,
     private val fallback: WorkoutRebalancer = OfflineWorkoutRebalancer(),
     private val baseUrl: String = DEFAULT_BASE_URL
@@ -42,7 +43,7 @@ class GeminiWorkoutRebalancer(
         skippedExerciseId: String,
         userPrompt: String
     ): Result<RebalanceResult> {
-        val key = apiKey?.trim()
+        val key = (apiKey ?: apiKeyProvider?.invoke() ?: System.getenv("GEMINI_API_KEY"))?.trim()
         if (key.isNullOrEmpty()) {
             return fallback.rebalanceWorkout(dayPlan, skippedExerciseId, userPrompt)
         }
