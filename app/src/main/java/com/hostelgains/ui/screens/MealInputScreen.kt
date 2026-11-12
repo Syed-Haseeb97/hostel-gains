@@ -28,6 +28,7 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Grain
@@ -395,6 +396,26 @@ private fun MealCard(meal: MealNutrition, onDelete: () -> Unit) {
             FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (meal.isHighCarb) StatusPill("Carb surplus", Warning)
                 if (meal.isLowProtein) StatusPill("Low protein", Danger)
+            }
+        }
+        if (meal.dietaryNotes.isNotBlank()) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(end = 12.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(Surface2.copy(alpha = 0.7f))
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.AutoAwesome, contentDescription = null, tint = Ignite, modifier = Modifier.size(14.dp))
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    meal.dietaryNotes,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMid
+                )
             }
         }
     }

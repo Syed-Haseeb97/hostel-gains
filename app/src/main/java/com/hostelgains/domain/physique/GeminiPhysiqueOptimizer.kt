@@ -56,10 +56,13 @@ class GeminiPhysiqueOptimizer(
                 })
             }
 
+            val cleanKey = apiKey.trim()
+            val targetUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$cleanKey"
+
             val request = Request.Builder()
-                .url("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent")
+                .url(targetUrl)
                 .addHeader("Content-Type", "application/json")
-                .addHeader("x-goog-api-key", apiKey.trim())
+                .addHeader("x-goog-api-key", cleanKey)
                 .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
                 .build()
 

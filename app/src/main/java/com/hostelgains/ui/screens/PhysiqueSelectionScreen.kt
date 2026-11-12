@@ -43,6 +43,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.SubcomposeAsyncImage
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -415,50 +417,103 @@ fun PhysiqueBuildCard(
             .background(bgColor)
             .border(if (isSelected) 2.dp else 1.dp, borderColor, RoundedCornerShape(20.dp))
             .clickable(role = Role.RadioButton, onClick = onClick)
-            .padding(16.dp)
+            .padding(14.dp)
     ) {
-        // Visual Silhouette Badge & Top Bar
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+        // ── Real Visual Photo Banner (Faceless Build Reference) ───────────────
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(175.dp)
+                .clip(RoundedCornerShape(16.dp))
+                .background(Surface3)
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(build.visualBadge, fontSize = 24.sp)
-                Spacer(Modifier.width(10.dp))
-                Column {
-                    Text(
-                        build.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        color = if (isSelected) Ignite else TextHigh
+            SubcomposeAsyncImage(
+                model = build.realLifeVisualUrl,
+                contentDescription = "${build.title} visual representation",
+                contentScale = ContentScale.Crop,
+                modifier = Modifier.fillMaxSize(),
+                loading = {
+                    PhysiqueSilhouetteBanner(build = build, isSelected = isSelected, modifier = Modifier.fillMaxSize())
+                },
+                error = {
+                    PhysiqueSilhouetteBanner(build = build, isSelected = isSelected, modifier = Modifier.fillMaxSize())
+                }
+            )
+
+            // Cinematic gradient overlay for dark-mode contrast
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(
+                                Canvas0.copy(alpha = 0.40f),
+                                Canvas0.copy(alpha = 0.15f),
+                                Canvas0.copy(alpha = 0.92f)
+                            )
+                        )
                     )
+            )
+
+            // Top overlay: Archetype pill & Selection radio badge
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(20.dp))
+                        .background(Surface1.copy(alpha = 0.90f))
+                        .padding(horizontal = 10.dp, vertical = 5.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(build.visualBadge, fontSize = 15.sp)
+                    Spacer(Modifier.width(6.dp))
                     Text(
                         build.archetypeTag,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) Ignite else TextLow
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) Ignite else TextHigh
                     )
                 }
-            }
 
-            // Radio Indicator / Check Badge
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(CircleShape)
-                    .background(if (isSelected) Ignite else Surface3),
-                contentAlignment = Alignment.Center
-            ) {
-                if (isSelected) {
-                    Icon(Icons.Filled.Check, contentDescription = "Selected", tint = OnIgnite, modifier = Modifier.size(18.dp))
+                // Radio Indicator
+                Box(
+                    modifier = Modifier
+                        .size(30.dp)
+                        .clip(CircleShape)
+                        .background(if (isSelected) Ignite else Surface1.copy(alpha = 0.90f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isSelected) {
+                        Icon(Icons.Filled.Check, contentDescription = "Selected", tint = OnIgnite, modifier = Modifier.size(18.dp))
+                    }
                 }
             }
+
+            // Bottom overlay: Title and aesthetic summary tag
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(horizontal = 12.dp, vertical = 10.dp)
+            ) {
+                Text(
+                    build.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = TextHigh
+                )
+                Text(
+                    build.targetAesthetic,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Ignite,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
         }
-
-        Spacer(Modifier.height(12.dp))
-
-        // Visual Silhouette / Anatomical Canvas Banner
-        PhysiqueSilhouetteBanner(build = build, isSelected = isSelected)
 
         Spacer(Modifier.height(12.dp))
 
@@ -469,7 +524,7 @@ fun PhysiqueBuildCard(
             color = TextHigh
         )
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(10.dp))
 
         // Target Aesthetic & Rep Range Tags
         Row(
@@ -482,7 +537,7 @@ fun PhysiqueBuildCard(
 
         Spacer(Modifier.height(10.dp))
 
-        // Primary Exercises
+        // Primary Exercises Focus
         Column(
             modifier = Modifier
                 .fillMaxWidth()
@@ -490,7 +545,7 @@ fun PhysiqueBuildCard(
                 .background(Surface3.copy(alpha = 0.5f))
                 .padding(horizontal = 10.dp, vertical = 8.dp)
         ) {
-            Text("KEY MOVEMENTS", style = MaterialTheme.typography.labelSmall, color = TextLow)
+            Text("CORNERSTONE MOVEMENTS", style = MaterialTheme.typography.labelSmall, color = TextLow)
             Text(
                 build.primaryExerciseFocus,
                 style = MaterialTheme.typography.bodySmall,
