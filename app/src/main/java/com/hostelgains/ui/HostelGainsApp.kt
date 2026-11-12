@@ -38,6 +38,7 @@ import com.hostelgains.ui.viewmodel.WorkoutViewerViewModel
 @Composable
 fun HostelGainsApp(
     apiKeyViewModel: ApiKeyViewModel,
+    initialTab: NavigationTab = NavigationTab.MEALS,
     updateViewModel: UpdateViewModel = viewModel(),
     mealLogViewModel: MealLogViewModel = viewModel(),
     workoutViewModel: WorkoutViewModel = viewModel(),
@@ -63,7 +64,12 @@ fun HostelGainsApp(
     }
 
     val liveKey: String? = apiKeyViewModel.getStoredKey()
-    var currentTab by remember { mutableStateOf(NavigationTab.MEALS) }
+    var currentTab by remember { mutableStateOf(initialTab) }
+
+    // If initialTab changes (e.g. from push notification navigation intent), switch tab
+    LaunchedEffect(initialTab) {
+        currentTab = initialTab
+    }
 
     Scaffold(
         containerColor = Ink,
