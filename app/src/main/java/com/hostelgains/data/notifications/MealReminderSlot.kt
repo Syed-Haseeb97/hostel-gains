@@ -11,7 +11,8 @@ data class MealReminderSlot(
     val hour: Int,
     val minute: Int,
     val title: String,
-    val message: String
+    val message: String,
+    val targetTab: String = "MEALS"
 ) {
     companion object {
         val BREAKFAST = MealReminderSlot(
@@ -20,7 +21,8 @@ data class MealReminderSlot(
             hour = 9,
             minute = 0,
             title = "Done with breakfast? 🍳",
-            message = "Enter what you ate to keep a record and lock in your morning protein!"
+            message = "Enter what you ate to keep a record and lock in your morning protein!",
+            targetTab = "MEALS"
         )
 
         val LUNCH = MealReminderSlot(
@@ -29,7 +31,8 @@ data class MealReminderSlot(
             hour = 13,
             minute = 45,
             title = "Finished hostel lunch? 🍛",
-            message = "Log your mess food so the dynamic optimizer can calibrate today's V-Taper workout!"
+            message = "Log your mess food so the dynamic optimizer can calibrate today's V-Taper workout!",
+            targetTab = "MEALS"
         )
 
         val SNACKS = MealReminderSlot(
@@ -38,7 +41,18 @@ data class MealReminderSlot(
             hour = 17,
             minute = 40,
             title = "Grabbed evening snacks? 🍌",
-            message = "Log what you ate before your workout to optimize glycogen utilization!"
+            message = "Log what you ate before your workout to optimize glycogen utilization!",
+            targetTab = "MEALS"
+        )
+
+        val GYM_MOTIVATION = MealReminderSlot(
+            id = 105,
+            name = "GymMotivation",
+            hour = 19,
+            minute = 45,
+            title = "She left you? 💔 Make her regret it. 🗿",
+            message = "Still rotting on the hostel bed? Heartbreak is temporary, V-Taper is forever. Hit the gym and start your villain arc! 😤💥",
+            targetTab = "WORKOUT"
         )
 
         val DINNER = MealReminderSlot(
@@ -47,9 +61,10 @@ data class MealReminderSlot(
             hour = 20,
             minute = 45,
             title = "Done with dinner? 🍗",
-            message = "Finalize today's meal log to calculate daily macros and set tomorrow's recovery plan!"
+            message = "Finalize today's meal log to calculate daily macros and set tomorrow's recovery plan!",
+            targetTab = "MEALS"
         )
 
-        val ALL_SLOTS = listOf(BREAKFAST, LUNCH, SNACKS, DINNER)
+        val ALL_SLOTS = listOf(BREAKFAST, LUNCH, SNACKS, GYM_MOTIVATION, DINNER)
     }
 }

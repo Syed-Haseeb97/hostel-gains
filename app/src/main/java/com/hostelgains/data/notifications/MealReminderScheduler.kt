@@ -22,6 +22,7 @@ object MealReminderScheduler {
     const val EXTRA_SLOT_ID = "extra_slot_id"
     const val EXTRA_SLOT_TITLE = "extra_slot_title"
     const val EXTRA_SLOT_MESSAGE = "extra_slot_message"
+    const val EXTRA_TARGET_TAB = "extra_target_tab"
 
     /**
      * Creates the Android 8.0+ notification channel with high importance, vibration, and lights.
@@ -61,6 +62,7 @@ object MealReminderScheduler {
             putExtra(EXTRA_SLOT_ID, slot.id)
             putExtra(EXTRA_SLOT_TITLE, slot.title)
             putExtra(EXTRA_SLOT_MESSAGE, slot.message)
+            putExtra(EXTRA_TARGET_TAB, slot.targetTab)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

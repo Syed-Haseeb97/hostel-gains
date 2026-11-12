@@ -22,14 +22,16 @@ class MealReminderReceiver : BroadcastReceiver() {
             ?: "Hostel Meal Check-in 🍽️"
         val message = intent.getStringExtra(MealReminderScheduler.EXTRA_SLOT_MESSAGE)
             ?: "Time to log your meal and lock in today's macros!"
+        val targetTab = intent.getStringExtra(MealReminderScheduler.EXTRA_TARGET_TAB)
+            ?: "MEALS"
 
         // Ensure notification channel exists
         MealReminderScheduler.createNotificationChannel(context)
 
-        // Tapping notification launches MainActivity directly into Meal logging
+        // Tapping notification launches MainActivity directly into requested tab (MEALS or WORKOUT)
         val openAppIntent = Intent(context, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("target_tab", "MEALS")
+            putExtra("target_tab", targetTab)
         }
 
         val contentPendingIntent = PendingIntent.getActivity(
