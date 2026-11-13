@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import com.hostelgains.data.nutrition.MealRepository
 import com.hostelgains.data.profile.UserProfileRepository
 import com.hostelgains.domain.nutrition.DailyMacroSummary
+import com.hostelgains.domain.physique.ExperienceLevel
 import com.hostelgains.domain.physique.PhysiqueBuild
 import com.hostelgains.domain.physique.UserProfile
 import com.hostelgains.domain.rebalance.GeminiWorkoutRebalancer
@@ -14,8 +15,10 @@ import com.hostelgains.domain.workout.CompensatoryEngine
 import com.hostelgains.domain.workout.DefaultCompensatoryEngine
 import com.hostelgains.domain.workout.DynamicWorkoutRepository
 import com.hostelgains.domain.workout.Exercise
+import com.hostelgains.domain.workout.GeminiWorkoutGenerator
 import com.hostelgains.domain.workout.VTaperWorkoutRepository
 import com.hostelgains.domain.workout.WorkoutDayPlan
+import com.hostelgains.domain.workout.WorkoutPlanSerializer
 import com.hostelgains.ui.components.CompensationItemUi
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -40,12 +43,17 @@ data class RebalanceState(
 data class WorkoutUiState(
     val selectedDayIndex: Int = 0, // 0..6 for Day 1..Day 7
     val targetBuild: PhysiqueBuild = PhysiqueBuild.V_TAPER,
+    val experienceLevel: ExperienceLevel = ExperienceLevel.INTERMEDIATE,
     val basePlan: WorkoutDayPlan,
     val adjustedPlan: AdjustedWorkoutPlan,
     val completedExerciseIds: Set<String> = emptySet(),
     val rebalanceState: RebalanceState = RebalanceState(),
     val dailyMacros: DailyMacroSummary,
-    val userProfile: UserProfile? = null
+    val userProfile: UserProfile? = null,
+    val isGeneratingAiRoutine: Boolean = false,
+    val aiGenerationError: String? = null,
+    val isAiGeneratedRoutine: Boolean = false,
+    val coachRationale: String = ""
 )
 
 class WorkoutViewModel(
@@ -54,6 +62,9 @@ class WorkoutViewModel(
     private val mealRepository: MealRepository = AppRepositories.mealRepository,
     private val profileRepository: UserProfileRepository? = null,
     private val workoutRebalancer: WorkoutRebalancer = GeminiWorkoutRebalancer(
+        apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }
+    ),
+    private val workoutGenerator: GeminiWorkoutGenerator = GeminiWorkoutGenerator(
         apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }
     ),
     private val externalScope: CoroutineScope? = null
@@ -74,6 +85,7 @@ class WorkoutViewModel(
         mealRepository = mealRepository,
         profileRepository = null,
         workoutRebalancer = workoutRebalancer,
+        workoutGenerator = GeminiWorkoutGenerator(apiKeyProvider = { AppRepositories.apiKeyRepository?.getApiKey() }),
         externalScope = externalScope
     )
 
@@ -84,11 +96,21 @@ class WorkoutViewModel(
     private var _completedExercises: Set<String> = emptySet()
     private var _rebalanceState: RebalanceState = RebalanceState()
     private var _activeBuild: PhysiqueBuild = profileRepository?.userProfile?.value?.targetBuild ?: PhysiqueBuild.V_TAPER
+    private var _activeLevel: ExperienceLevel = profileRepository?.userProfile?.value?.experienceLevel ?: ExperienceLevel.INTERMEDIATE
+    private var _isGeneratingAiRoutine: Boolean = false
+    private var _aiGenerationError: String? = null
 
     private val _uiState = MutableStateFlow(buildInitialUiState())
     val uiState: StateFlow<WorkoutUiState> = _uiState.asStateFlow()
 
     private fun buildInitialUiState(): WorkoutUiState {
+        // Restore any previously saved Gemini AI routine from SharedPreferences
+        profileRepository?.loadAiWorkoutRoutineJson()?.let { savedJson ->
+            WorkoutPlanSerializer.fromJson(savedJson)?.let { (rationale, plans) ->
+                dynamicWorkoutRepository.setCustomAiPlans(plans, rationale)
+            }
+        }
+
         dynamicWorkoutRepository.setTargetBuild(_activeBuild)
         val base = dynamicWorkoutRepository.getDayPlan(1, _activeBuild)
         val initialSummary = mealRepository.getDailySummary().value
@@ -96,12 +118,17 @@ class WorkoutViewModel(
         return WorkoutUiState(
             selectedDayIndex = 0,
             targetBuild = _activeBuild,
+            experienceLevel = _activeLevel,
             basePlan = base,
             adjustedPlan = adj,
             completedExerciseIds = emptySet(),
             rebalanceState = _rebalanceState,
             dailyMacros = initialSummary,
-            userProfile = profileRepository?.userProfile?.value
+            userProfile = profileRepository?.userProfile?.value,
+            isGeneratingAiRoutine = _isGeneratingAiRoutine,
+            aiGenerationError = _aiGenerationError,
+            isAiGeneratedRoutine = dynamicWorkoutRepository.hasCustomAiPlans(),
+            coachRationale = dynamicWorkoutRepository.getCoachRationale()
         )
     }
 
@@ -115,9 +142,17 @@ class WorkoutViewModel(
         if (profileRepository != null) {
             scope.launch {
                 profileRepository.userProfile.collect { updatedProfile ->
+                    var changed = false
                     if (updatedProfile.targetBuild != _activeBuild) {
                         _activeBuild = updatedProfile.targetBuild
                         dynamicWorkoutRepository.setTargetBuild(_activeBuild)
+                        changed = true
+                    }
+                    if (updatedProfile.experienceLevel != _activeLevel) {
+                        _activeLevel = updatedProfile.experienceLevel
+                        changed = true
+                    }
+                    if (changed) {
                         updateState()
                     }
                 }
@@ -130,34 +165,112 @@ class WorkoutViewModel(
         completed: Set<String> = _completedExercises,
         rebalance: RebalanceState = _rebalanceState,
         summary: DailyMacroSummary = mealRepository.getDailySummary().value,
-        build: PhysiqueBuild = _activeBuild
+        build: PhysiqueBuild = _activeBuild,
+        level: ExperienceLevel = _activeLevel,
+        isGenerating: Boolean = _isGeneratingAiRoutine,
+        genError: String? = _aiGenerationError
     ) {
         _selectedDayIndex = dayIndex
         _completedExercises = completed
         _rebalanceState = rebalance
         _activeBuild = build
+        _activeLevel = level
+        _isGeneratingAiRoutine = isGenerating
+        _aiGenerationError = genError
         dynamicWorkoutRepository.setTargetBuild(build)
         val basePlan = dynamicWorkoutRepository.getDayPlan(dayIndex + 1, build)
         val adjusted = computeAdjustedPlan(basePlan, summary, rebalance)
         _uiState.value = WorkoutUiState(
             selectedDayIndex = dayIndex,
             targetBuild = build,
+            experienceLevel = level,
             basePlan = basePlan,
             adjustedPlan = adjusted,
             completedExerciseIds = completed,
             rebalanceState = rebalance,
             dailyMacros = summary,
-            userProfile = profileRepository?.userProfile?.value
+            userProfile = profileRepository?.userProfile?.value,
+            isGeneratingAiRoutine = isGenerating,
+            aiGenerationError = genError,
+            isAiGeneratedRoutine = dynamicWorkoutRepository.hasCustomAiPlans(),
+            coachRationale = dynamicWorkoutRepository.getCoachRationale()
         )
     }
 
-    fun selectPhysiqueBuild(build: PhysiqueBuild) {
+    fun selectPhysiqueBuild(build: PhysiqueBuild, autoGenerateAi: Boolean = true) {
         _activeBuild = build
         dynamicWorkoutRepository.setTargetBuild(build)
         profileRepository?.updateTargetBuild(build)
         // Reset rebalance when switching builds to prevent cross-routine mismatches
         _rebalanceState = RebalanceState()
         updateState(build = build, rebalance = _rebalanceState)
+        if (autoGenerateAi && AppRepositories.apiKeyRepository?.hasApiKey() == true) {
+            generateGeminiRoutine()
+        }
+    }
+
+    fun selectPhysiqueBuildAndLevel(build: PhysiqueBuild, level: ExperienceLevel, autoGenerateAi: Boolean = true) {
+        _activeBuild = build
+        _activeLevel = level
+        dynamicWorkoutRepository.setTargetBuild(build)
+        profileRepository?.updateTargetBuild(build)
+        profileRepository?.updateExperienceLevel(level)
+        _rebalanceState = RebalanceState()
+        updateState(build = build, level = level, rebalance = _rebalanceState)
+        if (autoGenerateAi && AppRepositories.apiKeyRepository?.hasApiKey() == true) {
+            generateGeminiRoutine()
+        }
+    }
+
+    fun selectExperienceLevel(level: ExperienceLevel, autoGenerateAi: Boolean = true) {
+        _activeLevel = level
+        profileRepository?.updateExperienceLevel(level)
+        updateState(level = level)
+        if (autoGenerateAi && AppRepositories.apiKeyRepository?.hasApiKey() == true) {
+            generateGeminiRoutine()
+        }
+    }
+
+    fun generateGeminiRoutine(onComplete: ((Boolean) -> Unit)? = null) {
+        val currentProf = profileRepository?.userProfile?.value ?: UserProfile(
+            targetBuild = _activeBuild,
+            experienceLevel = _activeLevel
+        )
+        val profileToUse = currentProf.copy(
+            targetBuild = _activeBuild,
+            experienceLevel = _activeLevel
+        )
+
+        _isGeneratingAiRoutine = true
+        _aiGenerationError = null
+        updateState(isGenerating = true, genError = null)
+
+        scope.launch {
+            val result = workoutGenerator.generateRoutine(profileToUse)
+            result.onSuccess { generated ->
+                dynamicWorkoutRepository.setCustomAiPlans(generated.plans, generated.coachRationale)
+                profileRepository?.saveAiWorkoutRoutineJson(
+                    WorkoutPlanSerializer.toJson(generated.plans, generated.coachRationale)
+                )
+                _isGeneratingAiRoutine = false
+                _aiGenerationError = null
+                _rebalanceState = RebalanceState()
+                updateState(isGenerating = false, genError = null)
+                onComplete?.invoke(true)
+            }.onFailure { ex ->
+                _isGeneratingAiRoutine = false
+                _aiGenerationError = ex.message ?: "Failed to generate AI routine with Gemini"
+                updateState(isGenerating = false, genError = _aiGenerationError)
+                onComplete?.invoke(false)
+            }
+        }
+    }
+
+    fun clearAiRoutine() {
+        dynamicWorkoutRepository.clearCustomAiPlans()
+        profileRepository?.clearAiWorkoutRoutine()
+        _rebalanceState = RebalanceState()
+        updateState(rebalance = _rebalanceState)
     }
 
     fun getAllPlans(): List<WorkoutDayPlan> {

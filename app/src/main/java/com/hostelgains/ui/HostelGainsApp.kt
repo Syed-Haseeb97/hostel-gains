@@ -75,8 +75,8 @@ fun HostelGainsApp(
     if (physiqueProfileViewModel != null && profileUiState != null && !profileUiState.isSaved) {
         PhysiqueSelectionScreen(
             viewModel = physiqueProfileViewModel,
-            onConfirmed = { selectedBuild ->
-                workoutViewModel.selectPhysiqueBuild(selectedBuild)
+            onConfirmed = { selectedBuild, selectedLevel ->
+                workoutViewModel.selectPhysiqueBuildAndLevel(selectedBuild, selectedLevel)
             }
         )
         return

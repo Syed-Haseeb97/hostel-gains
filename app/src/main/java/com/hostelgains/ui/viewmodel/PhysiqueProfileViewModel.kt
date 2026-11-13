@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.hostelgains.data.ApiKeyRepository
 import com.hostelgains.data.profile.UserProfileRepository
+import com.hostelgains.domain.physique.ExperienceLevel
 import com.hostelgains.domain.physique.GeminiPhysiqueOptimizer
 import com.hostelgains.domain.physique.PhysiqueBuild
 import com.hostelgains.domain.physique.PhysiqueOptimizationResult
@@ -18,6 +19,7 @@ data class PhysiqueProfileUiState(
     val weightKg: Float = 87f,
     val ageYears: Int = 21,
     val selectedBuild: PhysiqueBuild = PhysiqueBuild.V_TAPER,
+    val selectedExperienceLevel: ExperienceLevel = ExperienceLevel.INTERMEDIATE,
     val isOptimizing: Boolean = false,
     val optimizationResult: PhysiqueOptimizationResult? = null,
     val errorMessage: String? = null,
@@ -29,6 +31,7 @@ data class PhysiqueProfileUiState(
             weightKg = weightKg,
             ageYears = ageYears,
             targetBuild = selectedBuild,
+            experienceLevel = selectedExperienceLevel,
             customCalorieTarget = optimizationResult?.dailyCalories,
             customProteinTarget = optimizationResult?.proteinGrams,
             customNotes = optimizationResult?.fullSummary
@@ -51,6 +54,7 @@ class PhysiqueProfileViewModel(
             weightKg = current.weightKg,
             ageYears = current.ageYears,
             selectedBuild = current.targetBuild,
+            selectedExperienceLevel = current.experienceLevel,
             isSaved = current.isConfigured
         )
     }
@@ -69,6 +73,10 @@ class PhysiqueProfileViewModel(
 
     fun selectBuild(build: PhysiqueBuild) {
         _uiState.value = _uiState.value.copy(selectedBuild = build)
+    }
+
+    fun updateExperienceLevel(level: ExperienceLevel) {
+        _uiState.value = _uiState.value.copy(selectedExperienceLevel = level)
     }
 
     fun runGeminiOptimization() {

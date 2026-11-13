@@ -71,7 +71,7 @@ class GeminiPhysiqueOptimizer(
                 return@withContext OfflinePhysiqueOptimizer.optimize(profile)
             }
 
-            val rawBody = response.body?.string() ?: return@withContext OfflinePhysiqueOptimizer.optimize(profile)
+            val rawBody = response.body.string()
             val parsedResult = parseGeminiResponse(rawBody, profile)
             parsedResult ?: OfflinePhysiqueOptimizer.optimize(profile)
         } catch (e: Exception) {
@@ -88,7 +88,8 @@ class GeminiPhysiqueOptimizer(
         - Age: ${profile.ageYears} years
         - Calculated BMI: ${profile.bmi} (${profile.bmiCategory})
         - Target Physique Build: ${profile.targetBuild.title} (${profile.targetBuild.archetypeTag})
-        - Rep Range Focus: ${profile.targetBuild.repRangeSummary}
+        - Experience Level: ${profile.experienceLevel.title} (${profile.experienceLevel.subtitle})
+        - Rep Range & Volume Focus: ${profile.experienceLevel.repFocus}
         - Build Aesthetic: ${profile.targetBuild.targetAesthetic}
         - Context: Indian university hostel mess (high dal/rice/chapati carbs, inconsistent protein, crowded gym equipment).
 

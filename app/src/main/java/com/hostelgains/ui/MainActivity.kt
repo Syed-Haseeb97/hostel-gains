@@ -96,6 +96,9 @@ class MainActivity : ComponentActivity() {
             profileRepository = profileRepository,
             workoutRebalancer = com.hostelgains.domain.rebalance.GeminiWorkoutRebalancer(
                 apiKeyProvider = { apiKeyRepository.getApiKey() }
+            ),
+            workoutGenerator = com.hostelgains.domain.workout.GeminiWorkoutGenerator(
+                apiKeyProvider = { apiKeyRepository.getApiKey() }
             )
         )
 

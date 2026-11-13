@@ -34,15 +34,19 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.SelfImprovement
 import androidx.compose.material.icons.filled._3dRotation
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.FilledIconButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.ReadOnlyComposable
@@ -123,8 +127,8 @@ fun WorkoutPlanScreen(
         PhysiqueSelectionScreen(
             viewModel = profileViewModel,
             onDismiss = { showBuildSelector = false },
-            onConfirmed = { selectedBuild ->
-                viewModel.selectPhysiqueBuild(selectedBuild)
+            onConfirmed = { selectedBuild, selectedLevel ->
+                viewModel.selectPhysiqueBuildAndLevel(selectedBuild, selectedLevel)
                 showBuildSelector = false
             }
         )
@@ -155,7 +159,7 @@ fun WorkoutPlanScreen(
     ) {
         item {
             ScreenHeader(
-                eyebrow = "${state.targetBuild.title} · ${state.targetBuild.repRangeSummary}",
+                eyebrow = "${state.targetBuild.title} · ${state.experienceLevel.title.uppercase()} · ${state.targetBuild.repRangeSummary}",
                 title = "Train",
                 modifier = Modifier.padding(horizontal = 20.dp)
             ) {
@@ -198,6 +202,12 @@ fun WorkoutPlanScreen(
                                 )
                                 Spacer(Modifier.width(6.dp))
                                 StatusPill(state.targetBuild.archetypeTag, color = Ignite)
+                                Spacer(Modifier.width(4.dp))
+                                StatusPill(state.experienceLevel.title, color = Info)
+                                if (state.isAiGeneratedRoutine) {
+                                    Spacer(Modifier.width(4.dp))
+                                    StatusPill("✨ Gemini AI", color = Success)
+                                }
                             }
                             Text(
                                 "${state.targetBuild.repRangeSummary} · ${state.targetBuild.targetAesthetic}",
@@ -212,6 +222,161 @@ fun WorkoutPlanScreen(
                         Text(
                             "Change",
                             style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = Ignite
+                        )
+                    }
+                }
+            }
+        }
+
+        // ── AI Generation Live Feedback Card ──────────────────────────────────
+        if (state.isGeneratingAiRoutine) {
+            item {
+                HgCard(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth(),
+                    containerColor = Surface2,
+                    borderColor = Ignite
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        CircularProgressIndicator(color = Ignite, modifier = Modifier.size(24.dp))
+                        Spacer(Modifier.width(12.dp))
+                        Column {
+                            Text(
+                                "Gemini 1.5 Flash AI Periodization",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextHigh
+                            )
+                            Text(
+                                "Generating 7-day routine tailored for ${state.experienceLevel.title} level & ${state.targetBuild.title}...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextMid
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── AI Generation Error Card ──────────────────────────────────────────
+        if (state.aiGenerationError != null && !state.isGeneratingAiRoutine) {
+            item {
+                HgCard(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth(),
+                    containerColor = Surface2,
+                    borderColor = Danger
+                ) {
+                    Column(modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            "AI Routine Generation Error",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = Danger
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Text(
+                            state.aiGenerationError!!,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMid
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.End
+                        ) {
+                            TextButton(onClick = { viewModel.generateGeminiRoutine() }) {
+                                Icon(Icons.Filled.Refresh, contentDescription = null, tint = Ignite, modifier = Modifier.size(16.dp))
+                                Spacer(Modifier.width(4.dp))
+                                Text("Retry with Gemini", color = Ignite)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Gemini Coach Rationale Card ───────────────────────────────────────
+        if (state.coachRationale.isNotBlank()) {
+            item {
+                HgCard(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth(),
+                    containerColor = Surface2,
+                    borderColor = Success.copy(alpha = 0.5f)
+                ) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = Success,
+                            modifier = Modifier.size(20.dp).padding(top = 2.dp)
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                "Gemini Coach Rationale · ${state.experienceLevel.title}",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = Success
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                state.coachRationale,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = TextHigh
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        // ── Action Bar (Calibrate with Gemini AI) ─────────────────────────────
+        item {
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 16.dp)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    if (state.isAiGeneratedRoutine) "✨ AI Periodized Routine" else "Baseline Framework",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (state.isAiGeneratedRoutine) Success else TextLow
+                )
+                if (!state.isGeneratingAiRoutine) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Surface2)
+                            .border(1.dp, Ignite.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                            .clickable { viewModel.generateGeminiRoutine() }
+                            .padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = Ignite,
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Spacer(Modifier.width(6.dp))
+                        Text(
+                            if (state.isAiGeneratedRoutine) "Regenerate with Gemini" else "Calibrate with Gemini AI",
+                            style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
                             color = Ignite
                         )

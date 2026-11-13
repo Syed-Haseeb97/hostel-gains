@@ -11,15 +11,45 @@ class DynamicWorkoutRepository(
     private var activeBuild: PhysiqueBuild = PhysiqueBuild.V_TAPER
 ) {
     private val vTaperRepo = VTaperWorkoutRepository()
+    private val customAiPlans = mutableMapOf<Int, WorkoutDayPlan>()
+    private var coachRationale: String = ""
+    private var isCustomAiActive: Boolean = false
 
     fun setTargetBuild(build: PhysiqueBuild) {
-        activeBuild = build
+        if (activeBuild != build) {
+            activeBuild = build
+            // Clear custom AI plan if the user explicitly switches physique builds
+            clearCustomAiPlans()
+        }
     }
 
     fun getActiveBuild(): PhysiqueBuild = activeBuild
 
+    fun setCustomAiPlans(plans: List<WorkoutDayPlan>, rationale: String = "") {
+        customAiPlans.clear()
+        for (p in plans) {
+            customAiPlans[p.dayNumber] = p
+        }
+        coachRationale = rationale
+        isCustomAiActive = customAiPlans.isNotEmpty()
+    }
+
+    fun clearCustomAiPlans() {
+        customAiPlans.clear()
+        coachRationale = ""
+        isCustomAiActive = false
+    }
+
+    fun hasCustomAiPlans(): Boolean = isCustomAiActive && customAiPlans.isNotEmpty()
+
+    fun getCoachRationale(): String = coachRationale
+
     fun getDayPlan(dayNumber: Int, build: PhysiqueBuild = activeBuild): WorkoutDayPlan {
         require(dayNumber in 1..7) { "Day number must be between 1 and 7 (inclusive), got: $dayNumber" }
+        if (isCustomAiActive && customAiPlans.containsKey(dayNumber)) {
+            val custom = customAiPlans[dayNumber]
+            if (custom != null) return custom
+        }
         return when (build) {
             PhysiqueBuild.V_TAPER -> vTaperRepo.getDayPlan(dayNumber)
             PhysiqueBuild.TANK -> getTankPlan(dayNumber)

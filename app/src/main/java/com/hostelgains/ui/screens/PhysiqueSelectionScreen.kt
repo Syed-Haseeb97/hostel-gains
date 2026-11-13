@@ -64,6 +64,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.hostelgains.domain.physique.ExperienceLevel
 import com.hostelgains.domain.physique.PhysiqueBuild
 import com.hostelgains.ui.components.HgCard
 import com.hostelgains.ui.components.HgPrimaryButton
@@ -98,7 +99,7 @@ fun PhysiqueSelectionScreen(
     viewModel: PhysiqueProfileViewModel,
     modifier: Modifier = Modifier,
     onDismiss: (() -> Unit)? = null,
-    onConfirmed: (PhysiqueBuild) -> Unit
+    onConfirmed: (PhysiqueBuild, ExperienceLevel) -> Unit
 ) {
     val state by viewModel.uiState.collectAsState()
     val profile = state.currentProfile
@@ -264,6 +265,21 @@ fun PhysiqueSelectionScreen(
             }
         }
 
+        // ── Lifting Experience Level ──────────────────────────────────
+        item {
+            SectionLabel("Lifting Experience Level")
+            Spacer(Modifier.height(8.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                ExperienceLevel.ALL_LEVELS.forEach { level ->
+                    ExperienceLevelCard(
+                        level = level,
+                        isSelected = level == state.selectedExperienceLevel,
+                        onClick = { viewModel.updateExperienceLevel(level) }
+                    )
+                }
+            }
+        }
+
         // ── Primary Build Selection ────────────────────────────────────────────
         item {
             Row(
@@ -381,13 +397,14 @@ fun PhysiqueSelectionScreen(
         }
 
         // ── Confirm Action Button ──────────────────────────────────────────────
+        // ── Confirm Action Button ──────────────────────────────────────────────
         item {
             HgPrimaryButton(
                 text = "Lock In ${state.selectedBuild.title} & Generate Routine",
                 icon = Icons.AutoMirrored.Filled.ArrowForward,
                 onClick = {
                     viewModel.saveProfile()
-                    onConfirmed(state.selectedBuild)
+                    onConfirmed(state.selectedBuild, state.selectedExperienceLevel)
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -666,5 +683,79 @@ fun PhysiqueSilhouetteBanner(
                 color = accentColor
             )
         }
+    }
+}
+
+/**
+ * Interactive card representing a lifting experience level (Beginner, Intermediate, Advanced).
+ */
+@Composable
+fun ExperienceLevelCard(
+    level: ExperienceLevel,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val borderColor by animateColorAsState(if (isSelected) Ignite else Outline, label = "levelBorder")
+    val bgColor by animateColorAsState(if (isSelected) Surface2 else Surface1, label = "levelBg")
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(bgColor)
+            .border(if (isSelected) 2.dp else 1.dp, borderColor, RoundedCornerShape(16.dp))
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        level.title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextHigh
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    StatusPill(level.subtitle, color = if (isSelected) Ignite else TextLow)
+                }
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    level.repFocus,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isSelected) Ignite else TextMid,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+            Spacer(Modifier.width(10.dp))
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(if (isSelected) Ignite else Surface3),
+                contentAlignment = Alignment.Center
+            ) {
+                if (isSelected) {
+                    Icon(
+                        Icons.Filled.Check,
+                        contentDescription = "Selected",
+                        tint = OnIgnite,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(Modifier.height(6.dp))
+        Text(
+            level.description,
+            style = MaterialTheme.typography.bodySmall,
+            color = TextMid
+        )
     }
 }

@@ -10,6 +10,7 @@ data class UserProfile(
     val weightKg: Float = 87f,  // Default 87 kg
     val ageYears: Int = 21,     // Default college age
     val targetBuild: PhysiqueBuild = PhysiqueBuild.V_TAPER,
+    val experienceLevel: ExperienceLevel = ExperienceLevel.INTERMEDIATE,
     val aiCalibratedPlan: String? = null,
     val customCalorieTarget: Int? = null,
     val customProteinTarget: Int? = null,
