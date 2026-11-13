@@ -6,14 +6,14 @@
 [![Language: Kotlin](https://img.shields.io/badge/Language-Kotlin_2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![UI: Jetpack Compose](https://img.shields.io/badge/UI-Jetpack_Compose_BOM-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Database: Room](https://img.shields.io/badge/Database-Room_SQLite-FF6F00?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
-[![Tests: 301 Passing](https://img.shields.io/badge/Unit_Tests-301_Passing_(100%25)-C6FF3D?style=for-the-badge&logo=checkmarx&logoColor=black)](#automated-testing)
-[![Latest Release](https://img.shields.io/badge/Release-v1.1.0-FF5A36?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Syed-Haseeb97/hostel-gains/releases/latest)
+[![Tests: 313 Passing](https://img.shields.io/badge/Unit_Tests-313_Passing_(100%25)-C6FF3D?style=for-the-badge&logo=checkmarx&logoColor=black)](#automated-testing)
+[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-FF5A36?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Syed-Haseeb97/hostel-gains/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-38BDF8?style=for-the-badge)](#license)
 
 ---
 
 ## 📲 Quick Download
-- 📥 **Download APK Directly**: [**hostel-gains-v1.1.0.apk** (GitHub Releases)](https://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.1.0/hostel-gains-v1.1.0.apk)
+- 📥 **Download APK Directly**: [**hostel-gains-v1.2.0.apk** (GitHub Releases)](https://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.2.0/hostel-gains-v1.2.0.apk)
 - 🔄 **In-App Auto-Updates**: The app checks GitHub Releases in real-time on every launch and downloads/installs newer versions seamlessly in the background.
 
 ---
@@ -47,7 +47,17 @@ Instead of forcing everyone into a static workout plan, users select their desir
 
 ---
 
-### 2. 🍽️ Mess Menu AI & Room Database Persistence
+### 2. ⚡ Lifting Experience Level & Live Gemini 1.5 Flash Routine Generation
+Users choose their experience level during onboarding and profile setup:
+- **Beginner (0–1 yrs)**: Focus on form mastery, joint stability, and controlled reps (10–15 reps) with 3 working sets and 90–120s recovery.
+- **Intermediate (1–3 yrs)**: Progressive overload and mechanical tension (8–12 reps), 3–4 working sets, 60–90s recovery.
+- **Advanced / Pro (3+ yrs)**: High density, heavy CNS compound sets (4–8 reps) paired with failure sets (12–15 reps), pause reps, dead-stop rows, and weak-point specialization.
+
+**Live Gemini Periodization**: Tapping *"Calibrate with Gemini AI"* directly sends your build, level, and anthropometrics to Google Gemini 1.5 Flash REST API to synthesize a 100% custom 7-day Push/Pull/Legs periodized routine with zero static offline fixtures faking the schedule.
+
+---
+
+### 3. 🍽️ Mess Menu AI & Room Database Persistence
 - **Natural Language Parsing**: Input meals naturally like *"4 boiled eggs and 2 bananas"*, *"dal, rice, and 3 rotis"*, or *"mutton curry, 1 bowl"*.
 - **Google Gemini 1.5 Flash REST Client**: Real-time structured JSON extraction with grams of protein, carbs, fats, and calories.
 - **Local Indian Mess Dataset (NIN/USDA)**: Instant offline fallback when network is absent or no API key is supplied.
