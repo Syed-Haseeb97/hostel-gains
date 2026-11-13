@@ -179,21 +179,15 @@ fun ApiKeyReminderBanner(
                 Icons.Filled.WarningAmber,
                 contentDescription = null,
                 tint = Warning,
-                modifier = Modifier.size(24.dp)
+                modifier = Modifier.size(20.dp)
             )
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Gemini AI Not Active",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                    color = Warning
-                )
-                Text(
-                    text = "Add your Google AI key for conversational meal logging & workout rebalancing.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = TextHigh
-                )
-            }
+            Spacer(Modifier.width(8.dp))
+            Text(
+                text = "Connect Gemini AI Key for live coaching",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = Warning,
+                modifier = Modifier.weight(1f)
+            )
             Spacer(Modifier.width(8.dp))
             Box(
                 modifier = Modifier

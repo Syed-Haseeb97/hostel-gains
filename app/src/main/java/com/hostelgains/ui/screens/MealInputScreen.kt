@@ -162,15 +162,14 @@ fun MealInputScreen(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.88f)
-                            .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 4.dp))
+                            .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp))
                             .background(Surface1)
-                            .border(1.dp, Outline, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 4.dp))
-                            .padding(16.dp)
+                            .border(1.dp, Outline, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
                     ) {
                         Text(
-                            text = "Hey! Tell me what you ate from the mess, canteen or your room, like \"3 roti, dal and rice\", and I'll log the calories and macros.",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp),
+                            text = "What did you eat today?",
+                            style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, fontWeight = FontWeight.SemiBold),
                             color = TextHigh
                         )
                     }
@@ -185,7 +184,7 @@ fun MealInputScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(0.85f)
-                                .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomStart = 22.dp, bottomEnd = 4.dp))
+                                .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomStart = 20.dp, bottomEnd = 4.dp))
                                 .background(Ignite)
                                 .padding(horizontal = 16.dp, vertical = 12.dp)
                         ) {
@@ -194,7 +193,7 @@ fun MealInputScreen(
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     fontSize = 15.sp,
-                                    lineHeight = 22.sp
+                                    lineHeight = 20.sp
                                 ),
                                 color = OnIgnite
                             )
@@ -206,24 +205,8 @@ fun MealInputScreen(
                 item(key = "ai_${meal.id}") {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
                         Column(modifier = Modifier.fillMaxWidth(0.88f)) {
-                            // Text bubble
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 4.dp))
-                                    .background(Surface1)
-                                    .border(1.dp, Outline, RoundedCornerShape(topStart = 22.dp, topEnd = 22.dp, bottomEnd = 22.dp, bottomStart = 4.dp))
-                                    .padding(16.dp)
-                            ) {
-                                Text(
-                                    text = "Logged ${meal.mealName}. Total: ${meal.calories} kcal, ${meal.proteinGrams.roundToInt()}g protein.",
-                                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 15.sp, lineHeight = 22.sp),
-                                    color = TextHigh
-                                )
-                            }
-
                             // Items breakdown table
                             if (meal.items.isNotEmpty()) {
-                                Spacer(Modifier.height(8.dp))
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -231,11 +214,38 @@ fun MealInputScreen(
                                         .background(Surface1)
                                         .border(1.dp, Outline, RoundedCornerShape(18.dp))
                                 ) {
+                                    // Header with meal name and total calories
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = meal.mealName,
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = TextHigh
+                                        )
+                                        Text(
+                                            text = "${meal.calories} kcal",
+                                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                            color = Ignite
+                                        )
+                                    }
+
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(Outline)
+                                    )
+
                                     meal.items.forEachIndexed { idx, item ->
                                         Row(
                                             modifier = Modifier
                                                 .fillMaxWidth()
-                                                .padding(horizontal = 16.dp, vertical = 10.dp),
+                                                .padding(horizontal = 16.dp, vertical = 9.dp),
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
@@ -246,14 +256,14 @@ fun MealInputScreen(
                                                     color = TextHigh
                                                 )
                                                 Text(
-                                                    text = "P ${item.proteinGrams.roundToInt()}g · C ${item.carbsGrams.roundToInt()}g · F ${item.fatsGrams.roundToInt()}g",
+                                                    text = "${item.proteinGrams.roundToInt()}g P · ${item.carbsGrams.roundToInt()}g C · ${item.fatsGrams.roundToInt()}g F",
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = TextMid
                                                 )
                                             }
                                             Text(
                                                 text = "${item.calories} kcal",
-                                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                                style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                                                 color = TextHigh
                                             )
                                         }
@@ -262,7 +272,7 @@ fun MealInputScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .height(1.dp)
-                                                    .background(Outline)
+                                                    .background(Outline.copy(alpha = 0.5f))
                                             )
                                         }
                                     }
@@ -272,7 +282,7 @@ fun MealInputScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .background(Ignite.copy(alpha = 0.15f))
-                                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                                            .padding(horizontal = 16.dp, vertical = 7.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Icon(
@@ -283,11 +293,25 @@ fun MealInputScreen(
                                         )
                                         Spacer(Modifier.width(6.dp))
                                         Text(
-                                            text = "Logged to today",
+                                            text = "Logged to today · ${meal.proteinGrams.roundToInt()}g protein",
                                             style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                                             color = Ignite
                                         )
                                     }
+                                }
+                            } else {
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp))
+                                        .background(Surface1)
+                                        .border(1.dp, Outline, RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp, bottomEnd = 20.dp, bottomStart = 4.dp))
+                                        .padding(14.dp)
+                                ) {
+                                    Text(
+                                        text = "${meal.mealName} · ${meal.calories} kcal (${meal.proteinGrams.roundToInt()}g P)",
+                                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                                        color = TextHigh
+                                    )
                                 }
                             }
                         }

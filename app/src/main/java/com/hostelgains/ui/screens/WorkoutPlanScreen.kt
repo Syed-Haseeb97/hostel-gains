@@ -253,7 +253,7 @@ fun WorkoutPlanScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .size(56.dp)
+                                .size(52.dp)
                                 .clip(CircleShape)
                                 .border(2.dp, Ignite, CircleShape)
                         ) {
@@ -261,31 +261,25 @@ fun WorkoutPlanScreen(
                                 painter = painterResource(R.drawable.gym_cat),
                                 contentDescription = "Sir Whiskers AI Coach",
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(56.dp)
+                                modifier = Modifier.size(52.dp)
                             )
                         }
                         Spacer(Modifier.width(14.dp))
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "Sir Whiskers · Gemini AI Coach",
+                                "Sir Whiskers",
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.Bold,
                                 color = TextHigh
                             )
                             Spacer(Modifier.height(2.dp))
                             Text(
-                                if (isPremiumAi) "🟢 Powered by Gemini 1.5 Flash (Direct API)" else "⚠️ AI Key Needed — Tap top bar to connect",
-                                style = MaterialTheme.typography.bodySmall,
+                                if (isPremiumAi) "🟢 Gemini 1.5 Flash" else "⚠️ Connect AI Key",
+                                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                                 color = if (isPremiumAi) Success else Warning
                             )
                         }
                     }
-                    Spacer(Modifier.height(12.dp))
-                    Text(
-                        "Tell me how you feel or what equipment is taken. If dumbbells are too heavy, you're sore, or you need exercise swaps, I will adapt your workout biomechanically without dropping your compound lifts.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMid
-                    )
                 }
             }
 
@@ -306,22 +300,14 @@ fun WorkoutPlanScreen(
                 }
             }
 
-            // ── Prompt Input & Suggestion Chips ─────────────────────────────
+            // ── Prompt Input & Quick Suggestion Chips ─────────────────────────────
             item {
                 HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                    Text("Chat with AI Coach", style = MaterialTheme.typography.titleMedium, color = TextHigh)
-                    Spacer(Modifier.height(2.dp))
-                    Text(
-                        "Ask your coach anything—e.g. 'bro dumbbells are too heavy', 'swap squats for leg press', 'make it easier'.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextMid
-                    )
-                    Spacer(Modifier.height(12.dp))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         HgTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
-                            placeholder = "e.g. Bro dumbbells are too heavy",
+                            placeholder = "Ask Sir Whiskers (e.g. Bro dumbbells are heavy)",
                             singleLine = true,
                             maxLines = 1,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -332,7 +318,7 @@ fun WorkoutPlanScreen(
                         FilledIconButton(
                             onClick = { submitPrompt(prompt) },
                             enabled = prompt.isNotBlank(),
-                            modifier = Modifier.size(56.dp),
+                            modifier = Modifier.size(52.dp),
                             shape = RoundedCornerShape(16.dp),
                             colors = IconButtonDefaults.filledIconButtonColors(
                                 containerColor = Ignite,
@@ -344,9 +330,7 @@ fun WorkoutPlanScreen(
                             Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send prompt to AI Coach")
                         }
                     }
-                    Spacer(Modifier.height(14.dp))
-                    Text("Tap a quick suggestion:", style = MaterialTheme.typography.labelSmall, color = TextLow)
-                    Spacer(Modifier.height(8.dp))
+                    Spacer(Modifier.height(12.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -354,15 +338,19 @@ fun WorkoutPlanScreen(
                         QUICK_ISSUES.forEach { issue ->
                             Box(
                                 Modifier
-                                    .heightIn(min = 36.dp)
+                                    .heightIn(min = 34.dp)
                                     .clip(CircleShape)
                                     .background(Surface2)
                                     .border(1.dp, Outline, CircleShape)
                                     .clickable(role = Role.Button) { submitPrompt(issue) }
-                                    .padding(horizontal = 14.dp),
+                                    .padding(horizontal = 12.dp, vertical = 7.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(issue, style = MaterialTheme.typography.labelMedium, color = TextHigh)
+                                Text(
+                                    issue,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                    color = TextHigh
+                                )
                             }
                         }
                     }
@@ -540,18 +528,14 @@ fun WorkoutPlanScreen(
                             }
                         }
                     }
-                    if (state.basePlan.guidanceNotes.isNotBlank()) {
-                        Spacer(Modifier.height(10.dp))
-                        Text(state.basePlan.guidanceNotes, style = MaterialTheme.typography.bodyMedium, color = TextMid)
-                    }
                     if (state.adjustedPlan.activeTriggers.isNotEmpty()) {
-                        Spacer(Modifier.height(12.dp))
+                        Spacer(Modifier.height(10.dp))
                         FlowRow(
                             horizontalArrangement = Arrangement.spacedBy(6.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             state.adjustedPlan.activeTriggers.forEach { trigger ->
-                                StatusPill(trigger, triggerColor(trigger), maxLines = 2)
+                                StatusPill(trigger, triggerColor(trigger), maxLines = 1)
                             }
                         }
                     }

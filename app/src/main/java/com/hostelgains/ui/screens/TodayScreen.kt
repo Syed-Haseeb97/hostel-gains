@@ -53,6 +53,7 @@ import com.hostelgains.ui.theme.Outline
 import com.hostelgains.ui.theme.ProteinColor
 import com.hostelgains.ui.theme.Surface1
 import com.hostelgains.ui.theme.TextHigh
+import com.hostelgains.ui.theme.TextLow
 import com.hostelgains.ui.theme.TextMid
 import com.hostelgains.ui.theme.Warning
 import com.hostelgains.ui.viewmodel.MealLogViewModel
@@ -84,7 +85,7 @@ fun TodayScreen(
         }
     }
     val dateSubtitle = remember {
-        LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMMM d", Locale.getDefault()))
+        LocalDate.now().format(DateTimeFormatter.ofPattern("EEEE, MMM d", Locale.getDefault()))
     }
 
     val exercises = workoutState.adjustedPlan.exercises
@@ -96,7 +97,7 @@ fun TodayScreen(
             .fillMaxSize()
             .background(Canvas0),
         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(18.dp)
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         // ── Greeting Header with Mascot ─────────────────────────────────────
         item {
@@ -146,7 +147,7 @@ fun TodayScreen(
                     .clip(RoundedCornerShape(28.dp))
                     .background(Surface1)
                     .border(1.dp, Outline, RoundedCornerShape(28.dp))
-                    .padding(22.dp)
+                    .padding(20.dp)
             ) {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
@@ -159,11 +160,11 @@ fun TodayScreen(
                     )
                 }
 
-                Spacer(Modifier.height(22.dp))
+                Spacer(Modifier.height(20.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     FigmaMacroBar(
                         label = "Protein",
@@ -190,27 +191,22 @@ fun TodayScreen(
             }
         }
 
-        // ── Calorie Over Warning Card (if applicable) ───────────────────────
+        // ── Calorie Over Warning (Compact pill) ──────────────────────────────
         if (isOverCalories) {
             item {
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(16.dp))
                         .background(Warning.copy(alpha = 0.15f))
-                        .border(1.dp, Warning.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
-                        .padding(18.dp)
+                        .border(1.dp, Warning.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${(summary.totalCalories - mealState.targetCalories)} kcal over target",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        text = "⚡ +${(summary.totalCalories - mealState.targetCalories)} kcal surplus · Cardio added to workout",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
                         color = Warning
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        text = "The AI coach has automatically added extra cardio volume to your routine to burn the surplus.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextHigh
                     )
                 }
             }
@@ -221,37 +217,33 @@ fun TodayScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(Ignite)
                     .clickable(role = Role.Button, onClick = onNavigateToMeals)
                     .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(OnIgnite.copy(alpha = 0.12f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.AutoAwesome,
-                        contentDescription = null,
-                        tint = OnIgnite,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(OnIgnite.copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = OnIgnite,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
                     Text(
-                        text = "Log a meal with AI",
+                        text = "Log meal with AI",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = OnIgnite
-                    )
-                    Text(
-                        text = "Just describe what you ate in plain words",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = OnIgnite.copy(alpha = 0.75f)
                     )
                 }
                 Icon(
@@ -268,39 +260,42 @@ fun TodayScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(26.dp))
+                    .clip(RoundedCornerShape(24.dp))
                     .background(Surface1)
-                    .border(1.dp, Outline, RoundedCornerShape(26.dp))
+                    .border(1.dp, Outline, RoundedCornerShape(24.dp))
                     .clickable(role = Role.Button, onClick = onNavigateToWorkout)
                     .padding(18.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(46.dp)
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Warning.copy(alpha = 0.15f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        Icons.Filled.FitnessCenter,
-                        contentDescription = null,
-                        tint = Warning,
-                        modifier = Modifier.size(22.dp)
-                    )
-                }
-                Spacer(Modifier.width(14.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = "Today's workout",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = TextHigh
-                    )
-                    Text(
-                        text = "$doneCount of ${exercises.size} exercises completed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMid
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(42.dp)
+                            .clip(RoundedCornerShape(14.dp))
+                            .background(Warning.copy(alpha = 0.15f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.FitnessCenter,
+                            contentDescription = null,
+                            tint = Warning,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column {
+                        Text(
+                            text = "Today's workout",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = TextHigh
+                        )
+                        Text(
+                            text = "$doneCount/${exercises.size} done",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMid
+                        )
+                    }
                 }
                 Text(
                     text = "Open",
@@ -319,7 +314,7 @@ fun TodayScreen(
         item {
             Text(
                 text = "Today's meals",
-                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = TextHigh
             )
         }
@@ -329,50 +324,48 @@ fun TodayScreen(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(Surface1)
-                        .border(1.dp, Outline, RoundedCornerShape(24.dp))
-                        .padding(vertical = 36.dp, horizontal = 20.dp),
+                        .border(1.dp, Outline, RoundedCornerShape(20.dp))
+                        .padding(vertical = 24.dp, horizontal = 16.dp),
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Nothing logged yet. Tell the AI what you ate.",
+                        text = "No meals logged yet today",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = TextMid
+                        color = TextLow
                     )
                 }
             }
         } else {
             items(mealState.meals) { meal ->
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
+                        .clip(RoundedCornerShape(20.dp))
                         .background(Surface1)
-                        .border(1.dp, Outline, RoundedCornerShape(24.dp))
-                        .padding(18.dp)
+                        .border(1.dp, Outline, RoundedCornerShape(20.dp))
+                        .padding(horizontal = 18.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
                             text = meal.rawQuery,
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
                             color = TextHigh
                         )
+                        Spacer(Modifier.height(2.dp))
                         Text(
-                            text = "${meal.calories} kcal",
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = Ignite
+                            text = "${meal.proteinGrams.roundToInt()}g P · ${meal.carbsGrams.roundToInt()}g C · ${meal.fatsGrams.roundToInt()}g F",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMid
                         )
                     }
-                    Spacer(Modifier.height(4.dp))
                     Text(
-                        text = "P ${meal.proteinGrams.roundToInt()}g · C ${meal.carbsGrams.roundToInt()}g · F ${meal.fatsGrams.roundToInt()}g",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = TextMid
+                        text = "${meal.calories} kcal",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = Ignite
                     )
                 }
             }
