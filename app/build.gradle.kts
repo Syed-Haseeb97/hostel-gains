@@ -3,6 +3,7 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val ciDebugKeystore = rootProject.file("app/ci-debug.keystore")
 val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
 val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val keyAliasEnv = System.getenv("ANDROID_KEY_ALIAS")
@@ -36,12 +37,22 @@ android {
                 keyPassword = keyPasswordEnv
             }
         }
+        if (ciDebugKeystore.exists()) {
+            create("ciDebug") {
+                storeFile = ciDebugKeystore
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildTypes {
         debug {
             if (hasCustomSigning) {
                 signingConfig = signingConfigs.getByName("envSigning")
+            } else if (ciDebugKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("ciDebug")
             }
         }
         release {
@@ -49,6 +60,8 @@ android {
             isShrinkResources = true
             if (hasCustomSigning) {
                 signingConfig = signingConfigs.getByName("envSigning")
+            } else if (ciDebugKeystore.exists()) {
+                signingConfig = signingConfigs.getByName("ciDebug")
             }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
