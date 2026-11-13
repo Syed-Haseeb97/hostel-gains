@@ -17,10 +17,10 @@ class UpdateViewModelTest {
     fun testUpdateViewModel_whenAlreadyOnLatestVersion_doesNotTriggerDownloadOrDialog() {
         val fakeService = object : AppUpdateService() {
             override suspend fun checkForUpdate(currentVersionName: String): UpdateCheckResult {
-                val isNewer = isRemoteVersionNewer(currentVersionName, "v1.2.1")
+                val isNewer = isRemoteVersionNewer(currentVersionName, "v1.3.0")
                 return if (isNewer) {
                     UpdateCheckResult.UpdateAvailable(
-                        AppReleaseInfo("v1.2.1", "1.2.1", "", "https://example.com/app.apk", true)
+                        AppReleaseInfo("v1.3.0", "1.3.0", "", "https://example.com/app.apk", true)
                     )
                 } else {
                     UpdateCheckResult.UpToDate
@@ -28,11 +28,11 @@ class UpdateViewModelTest {
             }
         }
 
-        // Simulating current installed version is already 1.2.1
+        // Simulating current installed version is already 1.3.0
         val testScope = CoroutineScope(Dispatchers.Unconfined)
         val viewModel = UpdateViewModel(
             updateService = fakeService,
-            versionOverride = "1.2.1",
+            currentVersion = "1.3.0",
             externalScope = testScope
         )
 
@@ -48,10 +48,10 @@ class UpdateViewModelTest {
     fun testUpdateViewModel_whenOlderVersion_detectsUpdate() {
         val fakeService = object : AppUpdateService() {
             override suspend fun checkForUpdate(currentVersionName: String): UpdateCheckResult {
-                val isNewer = isRemoteVersionNewer(currentVersionName, "v1.2.1")
+                val isNewer = isRemoteVersionNewer(currentVersionName, "v1.3.0")
                 return if (isNewer) {
                     UpdateCheckResult.UpdateAvailable(
-                        AppReleaseInfo("v1.2.1", "1.2.1", "", "https://example.com/app.apk", true)
+                        AppReleaseInfo("v1.3.0", "1.3.0", "", "https://example.com/app.apk", true)
                     )
                 } else {
                     UpdateCheckResult.UpToDate
@@ -63,14 +63,14 @@ class UpdateViewModelTest {
         val testScope = CoroutineScope(Dispatchers.Unconfined)
         val viewModel = UpdateViewModel(
             updateService = fakeService,
-            versionOverride = "1.1.0",
+            currentVersion = "1.1.0",
             externalScope = testScope
         )
 
         viewModel.checkForUpdatesOnLaunch()
 
         val state = viewModel.uiState.value
-        assertEquals("v1.2.1", state.releaseInfo?.tagName)
+        assertEquals("v1.3.0", state.releaseInfo?.tagName)
     }
 
     @Test
@@ -79,16 +79,16 @@ class UpdateViewModelTest {
         val fakeService = object : AppUpdateService() {
             override suspend fun checkForUpdate(currentVersionName: String): UpdateCheckResult {
                 return UpdateCheckResult.UpdateAvailable(
-                    AppReleaseInfo("v1.2.1", "1.2.1", "", "https://example.com/app.apk", true)
+                    AppReleaseInfo("v1.3.0", "1.3.0", "", "https://example.com/app.apk", true)
                 )
             }
         }
 
-        // App is already on 1.2.1
+        // App is already on 1.3.0
         val testScope = CoroutineScope(Dispatchers.Unconfined)
         val viewModel = UpdateViewModel(
             updateService = fakeService,
-            versionOverride = "1.2.1",
+            currentVersion = "1.3.0",
             externalScope = testScope
         )
 

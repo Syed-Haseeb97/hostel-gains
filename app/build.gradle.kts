@@ -3,7 +3,15 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
-val ciDebugKeystore = rootProject.file("app/ci-debug.keystore")
+val keystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
+val keystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
+val keyAliasEnv = System.getenv("ANDROID_KEY_ALIAS")
+val keyPasswordEnv = System.getenv("ANDROID_KEY_PASSWORD")
+val hasCustomSigning = !keystorePath.isNullOrBlank() &&
+    !keystorePassword.isNullOrBlank() &&
+    !keyAliasEnv.isNullOrBlank() &&
+    !keyPasswordEnv.isNullOrBlank() &&
+    rootProject.file(keystorePath).exists()
 
 android {
     namespace = "com.hostelgains.app"
@@ -13,29 +21,35 @@ android {
         applicationId = "com.hostelgains.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 4
-        versionName = "1.2.1"
+        versionCode = 5
+        versionName = "1.3.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     signingConfigs {
-        create("ciDebug") {
-            storeFile = ciDebugKeystore
-            storePassword = "android"
-            keyAlias = "androiddebugkey"
-            keyPassword = "android"
+        if (hasCustomSigning) {
+            create("envSigning") {
+                storeFile = rootProject.file(keystorePath!!)
+                storePassword = keystorePassword
+                keyAlias = keyAliasEnv
+                keyPassword = keyPasswordEnv
+            }
         }
     }
 
     buildTypes {
         debug {
-            if (ciDebugKeystore.exists()) {
-                signingConfig = signingConfigs.getByName("ciDebug")
+            if (hasCustomSigning) {
+                signingConfig = signingConfigs.getByName("envSigning")
             }
         }
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            if (hasCustomSigning) {
+                signingConfig = signingConfigs.getByName("envSigning")
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

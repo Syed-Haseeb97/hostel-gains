@@ -62,7 +62,9 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -118,6 +120,7 @@ fun WorkoutPlanScreen(
     val state by viewModel.uiState.collectAsState()
     val week = remember(state.targetBuild) { viewModel.getAllPlans() }
     val focusManager = LocalFocusManager.current
+    val haptics = LocalHapticFeedback.current
     var prompt by rememberSaveable { mutableStateOf("") }
     var showBuildSelector by rememberSaveable { mutableStateOf(false) }
     val daysState = rememberLazyListState()
@@ -142,6 +145,12 @@ fun WorkoutPlanScreen(
     val exercises = state.adjustedPlan.exercises
     val doneCount = exercises.count { it.baseExercise.id in state.completedExerciseIds }
     val isRest = state.basePlan.isActiveRest
+    val firstActiveExerciseId = remember(exercises, state.completedExerciseIds, state.rebalanceState) {
+        exercises.firstOrNull { ex ->
+            ex.baseExercise.id !in state.completedExerciseIds &&
+                !(state.rebalanceState.isRebalanced && ex.baseExercise.id == state.rebalanceState.skippedExerciseId)
+        }?.baseExercise?.id
+    }
 
     fun submitPrompt(text: String) {
         if (text.isBlank()) return
@@ -539,16 +548,27 @@ fun WorkoutPlanScreen(
             }
         }
 
-        items(exercises, key = { it.baseExercise.id }) { ex ->
+        items(exercises, key = { it.baseExercise.id }, contentType = { "exercise_card" }) { ex ->
             val skipped = state.rebalanceState.isRebalanced && ex.baseExercise.id == state.rebalanceState.skippedExerciseId
+            val isNextActive = ex.baseExercise.id == firstActiveExerciseId
             ExerciseCard(
                 exercise = ex,
                 isCompleted = ex.baseExercise.id in state.completedExerciseIds,
                 isSkipped = skipped,
                 isRest = isRest,
-                onToggleCompleted = { viewModel.toggleExerciseCompleted(ex.baseExercise.id) },
-                onSkip = { viewModel.skipExercise(ex.baseExercise.id) },
-                onView3D = { onNavigateToViewer(ex.baseExercise.id) },
+                animatePreview = isNextActive,
+                onToggleCompleted = {
+                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                    viewModel.toggleExerciseCompleted(ex.baseExercise.id)
+                },
+                onSkip = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    viewModel.skipExercise(ex.baseExercise.id)
+                },
+                onView3D = {
+                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                    onNavigateToViewer(ex.baseExercise.id)
+                },
                 modifier = Modifier.padding(horizontal = 16.dp)
             )
         }
@@ -613,6 +633,7 @@ private fun ExerciseCard(
     isCompleted: Boolean,
     isSkipped: Boolean,
     isRest: Boolean,
+    animatePreview: Boolean = true,
     onToggleCompleted: () -> Unit,
     onSkip: () -> Unit,
     onView3D: () -> Unit,
@@ -646,7 +667,7 @@ private fun ExerciseCard(
                     modifier = Modifier.fillMaxSize(),
                     interactive = false,
                     showGrid = false,
-                    isPlaying = !isSkipped && !isCompleted
+                    isPlaying = animatePreview && !isSkipped && !isCompleted
                 )
                 Icon(
                     Icons.Filled._3dRotation,

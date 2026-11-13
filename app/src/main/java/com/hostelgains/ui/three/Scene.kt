@@ -5,16 +5,16 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Paint
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.lerp as lerpColor
 import kotlin.math.cos
 import kotlin.math.max
-import kotlin.math.min
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Primitives
@@ -22,6 +22,16 @@ import kotlin.math.sin
 
 sealed interface Prim {
     val anchor: Vec3
+}
+
+/** Articulated 3D anatomical male mesh primitive from `Male-low.OBJ`. */
+class BodyMeshPrim(
+    val body: SolvedBody,
+    val muscles: Set<Muscle>,
+    val activation: Float,
+    val skin: Color
+) : Prim {
+    override val anchor: Vec3 get() = body.torso.pelvis + body.torso.up * 22f
 }
 
 /** Tapered capsule: limbs, bars, rollers, cables with thickness. */
@@ -67,7 +77,7 @@ class SceneBuilder(
     val cableColor: Color = Color(0xFFCBD1DB)
 ) {
     /** Regular primitives, depth-sorted together. */
-    val prims = ArrayList<Prim>(96)
+    val prims = ArrayList<Prim>(64)
 
     /** Surfaces the athlete rests on (benches, seats, floor plates). Drawn first, beneath everything. */
     val supports = ArrayList<Prim>(16)
@@ -96,6 +106,9 @@ class SceneBuilder(
         supportMode = prev
     }
 
+    fun bodyMesh(body: SolvedBody, muscles: Set<Muscle>, activation: Float, skin: Color) =
+        add(BodyMeshPrim(body, muscles, activation, skin))
+
     fun capsule(a: Vec3, b: Vec3, ra: Float, rb: Float = ra, color: Color, glow: Float = 0f) =
         add(Capsule(a, b, ra, rb, color, glow))
 
@@ -123,16 +136,16 @@ class SceneBuilder(
 class OrbitCamera(
     yawDeg: Float,
     pitchDeg: Float,
-    private val target: Vec3,
+    val target: Vec3,
     val distance: Float,
     val focal: Float,
     val cx: Float,
     val cy: Float
 ) {
-    private val cy0 = cosD(yawDeg)
-    private val sy0 = sinD(yawDeg)
-    private val cp = cosD(pitchDeg)
-    private val sp = sinD(pitchDeg)
+    val cy0 = cosD(yawDeg)
+    val sy0 = sinD(yawDeg)
+    val cp = cosD(pitchDeg)
+    val sp = sinD(pitchDeg)
 
     /** Rotation only (for normals and directions). z grows toward the camera. */
     fun rotate(p: Vec3): Vec3 {
@@ -164,7 +177,7 @@ class OrbitCamera(
         return (n dot toCam) > 0f
     }
 
-    /** Lambert brightness 0.45..1 for a world normal with a fixed key light from upper-left-front. */
+    /** Lambert brightness 0.42..1 for a world normal with a fixed key light from upper-left-front. */
     fun light(normal: Vec3): Float {
         val n = rotate(normal).normalized()
         val d = n dot KEY_LIGHT
@@ -172,7 +185,7 @@ class OrbitCamera(
     }
 
     companion object {
-        private val KEY_LIGHT = Vec3(-0.45f, 0.75f, 0.55f).normalized()
+        internal val KEY_LIGHT = Vec3(-0.45f, 0.75f, 0.55f).normalized()
     }
 }
 
@@ -188,6 +201,10 @@ class StageStyle(
     /** Soft light pool on the floor; white on dark stages, subtle on light ones. */
     val poolColor: Color = Color.White.copy(alpha = 0.07f)
 )
+
+private val fallbackWorkspace by lazy { MaleBodyMesh.createWorkspace() }
+private val fallbackScratchPath by lazy { Path() }
+private val ghostPaint by lazy { Paint().apply { alpha = 0.26f } }
 
 private fun Color.shade(f: Float): Color = Color(
     red = (red * f).coerceIn(0f, 1f),
@@ -206,22 +223,23 @@ fun DrawScope.drawFloor(
     scrollZ: Float,
     shadowCenter: Vec3,
     shadowRadiusX: Float,
-    shadowRadiusZ: Float
+    shadowRadiusZ: Float,
+    scratchPath: Path = fallbackScratchPath
 ) {
     // Spotlight pool on the floor.
-    val pool = Path()
-    val segments = 48
+    scratchPath.rewind()
+    val segments = 32
     for (i in 0..segments) {
         val a = i / segments.toFloat() * 2f * Math.PI.toFloat()
         val p = cam.project(v(cos(a) * halfExtent * 0.95f, 0f, sin(a) * halfExtent * 0.95f))
-        if (i == 0) pool.moveTo(p.x, p.y) else pool.lineTo(p.x, p.y)
+        if (i == 0) scratchPath.moveTo(p.x, p.y) else scratchPath.lineTo(p.x, p.y)
     }
-    pool.close()
+    scratchPath.close()
     val c0 = cam.project(Vec3.ZERO)
     val edge = cam.project(v(halfExtent, 0f, 0f))
     val radius = max(20f, (edge - c0).getDistance())
     drawPath(
-        pool,
+        scratchPath,
         brush = Brush.radialGradient(
             colors = listOf(style.poolColor, style.poolColor.copy(alpha = style.poolColor.alpha * 0.3f), Color.Transparent),
             center = c0,
@@ -250,17 +268,17 @@ fun DrawScope.drawFloor(
     }
 
     // Contact shadow.
-    val shadow = Path()
-    for (i in 0..32) {
-        val a = i / 32f * 2f * Math.PI.toFloat()
+    scratchPath.rewind()
+    for (i in 0..24) {
+        val a = i / 24f * 2f * Math.PI.toFloat()
         val p = cam.project(v(shadowCenter.x + cos(a) * shadowRadiusX, 0.2f, shadowCenter.z + sin(a) * shadowRadiusZ))
-        if (i == 0) shadow.moveTo(p.x, p.y) else shadow.lineTo(p.x, p.y)
+        if (i == 0) scratchPath.moveTo(p.x, p.y) else scratchPath.lineTo(p.x, p.y)
     }
-    shadow.close()
+    scratchPath.close()
     val sc = cam.project(v(shadowCenter.x, 0f, shadowCenter.z))
     val se = cam.project(v(shadowCenter.x + max(shadowRadiusX, shadowRadiusZ), 0f, shadowCenter.z))
     drawPath(
-        shadow,
+        scratchPath,
         brush = Brush.radialGradient(
             colors = listOf(style.shadowColor, style.shadowColor.copy(alpha = 0f)),
             center = sc,
@@ -273,31 +291,48 @@ fun DrawScope.drawFloor(
  * Painter's-algorithm render of every primitive, farthest first.
  * [focus] is the athlete's centre; ghosted machine parts nearer than it are drawn translucent.
  */
-fun DrawScope.drawScene(prims: List<Prim>, cam: OrbitCamera, style: StageStyle, focus: Vec3? = null) {
-    val sorted = prims.sortedByDescending { cam.depth(it.anchor) }
+fun DrawScope.drawScene(
+    prims: List<Prim>,
+    cam: OrbitCamera,
+    style: StageStyle,
+    focus: Vec3? = null,
+    compactLod: Boolean = false,
+    workspace: MeshRenderWorkspace = fallbackWorkspace,
+    scratchPath: Path = fallbackScratchPath
+) {
+    if (prims.isEmpty()) return
+    val sorted = if (prims.size <= 1) prims else prims.sortedByDescending { cam.depth(it.anchor) }
     val focusDepth = focus?.let { cam.depth(it) }
     for (p in sorted) {
         if (p is Ghosted) {
             val inFront = focusDepth != null && cam.depth(p.inner.anchor) < focusDepth - 4f
             if (inFront) {
-                drawIntoCanvas { it.saveLayer(Rect(Offset.Zero, size), Paint().apply { alpha = 0.26f }) }
-                drawPrim(p.inner, cam, style)
+                drawIntoCanvas { it.saveLayer(Rect(Offset.Zero, size), ghostPaint) }
+                drawPrim(p.inner, cam, style, compactLod, workspace, scratchPath)
                 drawIntoCanvas { it.restore() }
             } else {
-                drawPrim(p.inner, cam, style)
+                drawPrim(p.inner, cam, style, compactLod, workspace, scratchPath)
             }
         } else {
-            drawPrim(p, cam, style)
+            drawPrim(p, cam, style, compactLod, workspace, scratchPath)
         }
     }
 }
 
-private fun DrawScope.drawPrim(p: Prim, cam: OrbitCamera, style: StageStyle) {
+private fun DrawScope.drawPrim(
+    p: Prim,
+    cam: OrbitCamera,
+    style: StageStyle,
+    compactLod: Boolean,
+    workspace: MeshRenderWorkspace,
+    scratchPath: Path
+) {
     when (p) {
-        is Capsule -> drawCapsule(p, cam, style)
+        is BodyMeshPrim -> drawBodyMesh(p, cam, style, compactLod, workspace, scratchPath)
+        is Capsule -> drawCapsule(p, cam, style, scratchPath)
         is Ball -> drawBall(p, cam, style)
-        is Cylinder -> drawCylinder(p, cam)
-        is Block -> drawBlock(p, cam)
+        is Cylinder -> drawCylinder(p, cam, scratchPath)
+        is Block -> drawBlock(p, cam, scratchPath)
         is Cable -> drawLine(
             p.color,
             cam.project(p.a),
@@ -305,31 +340,228 @@ private fun DrawScope.drawPrim(p: Prim, cam: OrbitCamera, style: StageStyle) {
             strokeWidth = max(1.5f, 1.2f * density),
             cap = StrokeCap.Round
         )
-        is Ghosted -> drawPrim(p.inner, cam, style)
+        is Ghosted -> drawPrim(p.inner, cam, style, compactLod, workspace, scratchPath)
     }
 }
 
-private fun DrawScope.taperedPath(p1: Offset, r1: Float, p2: Offset, r2: Float): Path? {
+/**
+ * Renders the articulated `Male-low.OBJ` 3D triangle mesh with:
+ * - Zero per-frame heap allocations using [workspace] and [scratchPath].
+ * - View-space backface culling (skips ~50% of triangles immediately).
+ * - In-place primitive quicksort by triangle depth.
+ * - 3-point athletic studio lighting (Key light + rim light) and dynamic target-muscle glow.
+ */
+private fun DrawScope.drawBodyMesh(
+    p: BodyMeshPrim,
+    cam: OrbitCamera,
+    style: StageStyle,
+    compactLod: Boolean,
+    ws: MeshRenderWorkspace,
+    scratchPath: Path
+) {
+    val mesh = if (compactLod) MaleBodyMesh.compactLod else MaleBodyMesh.highLod
+    MaleBodyMesh.poseVertices(p.body, mesh, ws)
+
+    val vCount = mesh.vertexCount
+    val tx = cam.target.x
+    val ty = cam.target.y
+    val tz = cam.target.z
+    val cy0 = cam.cy0
+    val sy0 = cam.sy0
+    val cp = cam.cp
+    val sp = cam.sp
+    val camDist = cam.distance
+    val focal = cam.focal
+    val cx = cam.cx
+    val cy = cam.cy
+
+    // 1. Transform posed world vertices to view space and project to screen space
+    for (i in 0 until vCount) {
+        val rx = ws.worldX[i] - tx
+        val ry = ws.worldY[i] - ty
+        val rz = ws.worldZ[i] - tz
+
+        val x1 = rx * cy0 + rz * sy0
+        val z1 = -rx * sy0 + rz * cy0
+        val vx = x1
+        val vy = ry * cp - z1 * sp
+        val vz = ry * sp + z1 * cp
+
+        ws.viewX[i] = vx
+        ws.viewY[i] = vy
+        ws.viewZ[i] = vz
+
+        val d = max(camDist - vz, 1f)
+        val s = focal / d
+        ws.screenX[i] = cx + vx * s
+        ws.screenY[i] = cy - vy * s
+    }
+
+    // 2. Backface culling + view-space normal lighting
+    val tCount = mesh.triangleCount
+    val triV0 = mesh.triV0
+    val triV1 = mesh.triV1
+    val triV2 = mesh.triV2
+    val triMuscle = mesh.triMuscleId
+
+    val lx = OrbitCamera.KEY_LIGHT.x
+    val ly = OrbitCamera.KEY_LIGHT.y
+    val lz = OrbitCamera.KEY_LIGHT.z
+
+    var visCount = 0
+    for (j in 0 until tCount) {
+        val i0 = triV0[j]
+        val i1 = triV1[j]
+        val i2 = triV2[j]
+
+        val vx0 = ws.viewX[i0]; val vy0 = ws.viewY[i0]; val vz0 = ws.viewZ[i0]
+        val ux = ws.viewX[i1] - vx0; val uy = ws.viewY[i1] - vy0; val uz = ws.viewZ[i1] - vz0
+        val wx = ws.viewX[i2] - vx0; val wy = ws.viewY[i2] - vy0; val wz = ws.viewZ[i2] - vz0
+
+        val nz = ux * wy - uy * wx
+        if (nz <= 0.01f) continue // Back-facing in view space; cull immediately!
+
+        val nx = uy * wz - uz * wy
+        val ny = uz * wx - ux * wz
+        val nLen = sqrt(nx * nx + ny * ny + nz * nz).coerceAtLeast(1e-4f)
+
+        val dotKey = ((nx * lx + ny * ly + nz * lz) / nLen).coerceIn(0f, 1f)
+        val rim = (1f - (nz / nLen).coerceIn(0f, 1f)) * 0.16f
+        val brightness = (0.36f + 0.60f * dotKey + rim).coerceIn(0.28f, 1.08f)
+
+        val avgViewZ = (vz0 + ws.viewZ[i1] + ws.viewZ[i2]) * 0.33333334f
+        ws.visibleIndices[visCount] = j
+        // Larger depth = farther from camera (drawn first)
+        ws.visibleDepths[visCount] = camDist - avgViewZ
+        ws.visibleBrightness[visCount] = brightness
+        visCount++
+    }
+
+    if (visCount == 0) return
+
+    // 3. Sort visible triangles farthest-first (descending depth) in place
+    quickSortByDepthDescending(ws.visibleIndices, ws.visibleDepths, ws.visibleBrightness, 0, visCount - 1)
+
+    // 4. Rasterize triangles using the single reusable scratchPath
+    val activeMuscles = p.muscles
+    val act = p.activation
+    val baseSkin = p.skin
+    val accent = style.accent
+
+    for (k in 0 until visCount) {
+        val triIdx = ws.visibleIndices[k]
+        val i0 = triV0[triIdx]
+        val i1 = triV1[triIdx]
+        val i2 = triV2[triIdx]
+
+        val x0 = ws.screenX[i0]; val y0 = ws.screenY[i0]
+        val x1 = ws.screenX[i1]; val y1 = ws.screenY[i1]
+        val x2 = ws.screenX[i2]; val y2 = ws.screenY[i2]
+
+        val mId = triMuscle[triIdx]
+        val muscle = MaleBodyMesh.muscleForId(mId)
+        val isHighlighted = muscle != null && muscle in activeMuscles && act > 0.01f
+        val lit = ws.visibleBrightness[k]
+
+        val baseColor = if (isHighlighted) {
+            lerpColor(baseSkin, accent, (0.82f * act).coerceIn(0f, 1f))
+        } else {
+            baseSkin
+        }
+
+        val shadedColor = if (lit <= 1f) {
+            baseColor.shade(lit)
+        } else {
+            baseColor.tint((lit - 1f) * 1.8f)
+        }
+
+        scratchPath.rewind()
+        scratchPath.moveTo(x0, y0)
+        scratchPath.lineTo(x1, y1)
+        scratchPath.lineTo(x2, y2)
+        scratchPath.close()
+
+        drawPath(scratchPath, shadedColor)
+    }
+}
+
+private fun quickSortByDepthDescending(
+    indices: IntArray,
+    depths: FloatArray,
+    brightness: FloatArray,
+    low: Int,
+    high: Int
+) {
+    var l = low
+    var h = high
+    while (l < h) {
+        if (h - l < 12) {
+            // Insertion sort for small partitions
+            for (i in (l + 1)..h) {
+                val keyIdx = indices[i]
+                val keyDepth = depths[i]
+                val keyBright = brightness[i]
+                var j = i - 1
+                while (j >= l && depths[j] < keyDepth) {
+                    indices[j + 1] = indices[j]
+                    depths[j + 1] = depths[j]
+                    brightness[j + 1] = brightness[j]
+                    j--
+                }
+                indices[j + 1] = keyIdx
+                depths[j + 1] = keyDepth
+                brightness[j + 1] = keyBright
+            }
+            return
+        }
+
+        val pivot = depths[(l + h) ushr 1]
+        var i = l
+        var j = h
+        while (i <= j) {
+            while (depths[i] > pivot) i++
+            while (depths[j] < pivot) j--
+            if (i <= j) {
+                val tmpI = indices[i]; indices[i] = indices[j]; indices[j] = tmpI
+                val tmpD = depths[i]; depths[i] = depths[j]; depths[j] = tmpD
+                val tmpB = brightness[i]; brightness[i] = brightness[j]; brightness[j] = tmpB
+                i++
+                j--
+            }
+        }
+        if (j - l < h - i) {
+            if (l < j) quickSortByDepthDescending(indices, depths, brightness, l, j)
+            l = i
+        } else {
+            if (i < h) quickSortByDepthDescending(indices, depths, brightness, i, h)
+            h = j
+        }
+    }
+}
+
+private fun populateTaperedPath(scratch: Path, p1: Offset, r1: Float, p2: Offset, r2: Float): Boolean {
     val d = p2 - p1
     val len = d.getDistance()
-    if (len < 0.5f) return null
+    if (len < 0.5f) return false
     val n = Offset(-d.y / len, d.x / len)
-    val scratch = Path()
+    scratch.rewind()
     scratch.moveTo(p1.x + n.x * r1, p1.y + n.y * r1)
     scratch.lineTo(p2.x + n.x * r2, p2.y + n.y * r2)
     scratch.lineTo(p2.x - n.x * r2, p2.y - n.y * r2)
     scratch.lineTo(p1.x - n.x * r1, p1.y - n.y * r1)
     scratch.close()
-    return scratch
+    return true
 }
 
-private fun DrawScope.fillCapsule(p1: Offset, r1: Float, p2: Offset, r2: Float, color: Color) {
+private fun DrawScope.fillCapsule(p1: Offset, r1: Float, p2: Offset, r2: Float, color: Color, scratch: Path) {
     drawCircle(color, r1, p1)
     drawCircle(color, r2, p2)
-    taperedPath(p1, r1, p2, r2)?.let { drawPath(it, color) }
+    if (populateTaperedPath(scratch, p1, r1, p2, r2)) {
+        drawPath(scratch, color)
+    }
 }
 
-private fun DrawScope.drawCapsule(c: Capsule, cam: OrbitCamera, style: StageStyle) {
+private fun DrawScope.drawCapsule(c: Capsule, cam: OrbitCamera, style: StageStyle, scratch: Path) {
     val p1 = cam.project(c.a)
     val p2 = cam.project(c.b)
     val r1 = max(0.8f, c.ra * cam.scaleAt(cam.depth(c.a)))
@@ -338,14 +570,13 @@ private fun DrawScope.drawCapsule(c: Capsule, cam: OrbitCamera, style: StageStyl
 
     if (c.glow > 0.05f) {
         val halo = style.accent.copy(alpha = 0.22f * c.glow)
-        fillCapsule(p1, r1 * 1.45f, p2, r2 * 1.45f, halo)
+        fillCapsule(p1, r1 * 1.45f, p2, r2 * 1.45f, halo, scratch)
     }
-    // Three-tone clay shading: shadow rim, lit body, specular streak toward the key light.
-    fillCapsule(p1, r1, p2, r2, base.shade(0.52f))
+    fillCapsule(p1, r1, p2, r2, base.shade(0.52f), scratch)
     val lo = Offset(-0.16f, -0.2f)
-    fillCapsule(p1 + lo * r1, r1 * 0.8f, p2 + lo * r2, r2 * 0.8f, base.shade(0.9f))
+    fillCapsule(p1 + lo * r1, r1 * 0.8f, p2 + lo * r2, r2 * 0.8f, base.shade(0.9f), scratch)
     val hi = Offset(-0.32f, -0.38f)
-    fillCapsule(p1 + hi * r1, r1 * 0.34f, p2 + hi * r2, r2 * 0.34f, base.tint(0.35f).copy(alpha = 0.55f))
+    fillCapsule(p1 + hi * r1, r1 * 0.34f, p2 + hi * r2, r2 * 0.34f, base.tint(0.35f).copy(alpha = 0.55f), scratch)
 }
 
 private fun DrawScope.drawBall(b: Ball, cam: OrbitCamera, style: StageStyle) {
@@ -364,12 +595,12 @@ private fun DrawScope.drawBall(b: Ball, cam: OrbitCamera, style: StageStyle) {
     )
 }
 
-private fun DrawScope.drawCylinder(cy: Cylinder, cam: OrbitCamera) {
+private fun DrawScope.drawCylinder(cy: Cylinder, cam: OrbitCamera, scratch: Path) {
     val axis = (cy.b - cy.a).normalized()
     val helper = if (kotlin.math.abs(axis.y) < 0.9f) Vec3.UP else Vec3.RIGHT
     val u = (axis cross helper).normalized()
     val w = axis cross u
-    val n = 16
+    val n = 12
     val ringA = ArrayList<Offset>(n)
     val ringB = ArrayList<Offset>(n)
     for (i in 0 until n) {
@@ -380,7 +611,7 @@ private fun DrawScope.drawCylinder(cy: Cylinder, cam: OrbitCamera) {
     }
     val hull = convexHull(ringA + ringB)
     if (hull.size >= 3) {
-        val scratch = Path()
+        scratch.rewind()
         scratch.moveTo(hull[0].x, hull[0].y)
         for (i in 1 until hull.size) scratch.lineTo(hull[i].x, hull[i].y)
         scratch.close()
@@ -390,15 +621,15 @@ private fun DrawScope.drawCylinder(cy: Cylinder, cam: OrbitCamera) {
     val showB = cam.facesCamera(cy.b, axis)
     val ring = if (showB) ringB else ringA
     val capNormal = if (showB) axis else -axis
-    val capPath = Path()
-    capPath.moveTo(ring[0].x, ring[0].y)
-    for (i in 1 until ring.size) capPath.lineTo(ring[i].x, ring[i].y)
-    capPath.close()
-    drawPath(capPath, cy.cap.shade(cam.light(capNormal)))
-    drawPath(capPath, cy.cap.tint(0.25f).copy(alpha = 0.5f), style = Stroke(width = max(1f, density * 0.8f)))
+    scratch.rewind()
+    scratch.moveTo(ring[0].x, ring[0].y)
+    for (i in 1 until ring.size) scratch.lineTo(ring[i].x, ring[i].y)
+    scratch.close()
+    drawPath(scratch, cy.cap.shade(cam.light(capNormal)))
+    drawPath(scratch, cy.cap.tint(0.25f).copy(alpha = 0.5f), style = Stroke(width = max(1f, density * 0.8f)))
 }
 
-private fun DrawScope.drawBlock(b: Block, cam: OrbitCamera) {
+private fun DrawScope.drawBlock(b: Block, cam: OrbitCamera, scratch: Path) {
     val axes = arrayOf(b.ax, b.ay, b.az)
     for (i in 0..2) {
         for (sign in intArrayOf(-1, 1)) {
@@ -412,7 +643,7 @@ private fun DrawScope.drawBlock(b: Block, cam: OrbitCamera) {
             val q1 = cam.project(center + e1 - e2)
             val q2 = cam.project(center - e1 - e2)
             val q3 = cam.project(center - e1 + e2)
-            val scratch = Path()
+            scratch.rewind()
             scratch.moveTo(q0.x, q0.y)
             scratch.lineTo(q1.x, q1.y)
             scratch.lineTo(q2.x, q2.y)
@@ -426,7 +657,6 @@ private fun DrawScope.drawBlock(b: Block, cam: OrbitCamera) {
 
 private fun cross2(o: Offset, a: Offset, b: Offset): Float = (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x)
 
-/** Andrew's monotone chain. */
 private fun convexHull(points: List<Offset>): List<Offset> {
     if (points.size < 3) return points
     val pts = points.sortedWith(compareBy<Offset>({ it.x }, { it.y }))
@@ -444,4 +674,3 @@ private fun convexHull(points: List<Offset>): List<Offset> {
     upper.removeAt(upper.size - 1)
     return lower + upper
 }
-

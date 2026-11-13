@@ -1,5 +1,7 @@
 package com.hostelgains.data
 
+import com.hostelgains.data.network.SharedHttpClient
+import com.hostelgains.domain.util.SimpleJsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -19,7 +21,7 @@ interface ApiKeyValidator {
 
 /**
  * Real live validator that pings Google AI Studio's Gemini REST API
- * using a lightweight GET to `v1beta/models?key={key}`.
+ * using a lightweight GET to `v1beta/models` with the `x-goog-api-key` header.
  *
  * - Returns [KeyValidationResult.Valid] if Google responds with HTTP 200.
  * - Extracts and returns Google's exact error message on HTTP 400/401/403.
@@ -34,7 +36,7 @@ class GeminiApiKeyValidator(
         const val DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
         val defaultClient: OkHttpClient by lazy {
-            OkHttpClient.Builder()
+            SharedHttpClient.instance.newBuilder()
                 .connectTimeout(10, TimeUnit.SECONDS)
                 .readTimeout(10, TimeUnit.SECONDS)
                 .build()
@@ -45,6 +47,9 @@ class GeminiApiKeyValidator(
         val trimmed = key.trim()
         if (trimmed.isEmpty()) {
             return@withContext KeyValidationResult.Invalid("API key cannot be empty.")
+        }
+        if (trimmed.any { it.isWhitespace() || it.isISOControl() }) {
+            return@withContext KeyValidationResult.Invalid("API key contains invalid whitespace or control characters.")
         }
 
         val request = Request.Builder()
@@ -75,13 +80,18 @@ class GeminiApiKeyValidator(
     }
 
     internal fun parseGoogleErrorMessage(responseBody: String, httpCode: Int): String {
-        // Example Google error payload:
-        // { "error": { "code": 400, "message": "API key not valid. Please pass a valid API key.", "status": "INVALID_ARGUMENT" } }
-        val messageRegex = "\"message\"\\s*:\\s*\"([^\"]+)\"".toRegex()
+        val root = SimpleJsonParser.parse(responseBody) as? SimpleJsonParser.Node.ObjectNode
+        val errorObj = root?.get("error") as? SimpleJsonParser.Node.ObjectNode
+        val jsonMsg = errorObj?.optString("message")?.takeIf { it.isNotBlank() }
+        if (jsonMsg != null) {
+            return "Google AI Studio: $jsonMsg"
+        }
+
+        // Fallback regex if response body is partially truncated
+        val messageRegex = Regex("\"message\"\\s*:\\s*\"([^\"]+)\"")
         val match = messageRegex.find(responseBody)
         if (match != null) {
-            val rawMsg = match.groupValues[1]
-            return "Google AI Studio: $rawMsg"
+            return "Google AI Studio: ${match.groupValues[1]}"
         }
         return "Invalid API key (Google returned HTTP $httpCode)."
     }

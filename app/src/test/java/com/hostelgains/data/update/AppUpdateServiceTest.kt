@@ -69,4 +69,35 @@ class AppUpdateServiceTest {
         val release = service.parseReleaseJson(malformedJson)
         assertNull(release)
     }
+
+    @Test
+    fun testIsTrustedDownloadUrl_enforcesHttpsAndAllowedGitHubHosts() {
+        assertTrue(
+            AppUpdateService.isTrustedDownloadUrl(
+                "https://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.3.0/app-release.apk"
+            )
+        )
+        assertTrue(
+            AppUpdateService.isTrustedDownloadUrl(
+                "https://objects.githubusercontent.com/github-production-release-asset/app.apk"
+            )
+        )
+        assertFalse(
+            "Cleartext HTTP must be rejected",
+            AppUpdateService.isTrustedDownloadUrl(
+                "http://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.3.0/app.apk"
+            )
+        )
+        assertFalse(
+            "Untrusted third-party host must be rejected",
+            AppUpdateService.isTrustedDownloadUrl("https://evil.example.com/app-debug.apk")
+        )
+    }
+
+    @Test
+    fun testSanitizeTagForFilename_stripsPathTraversalSequences() {
+        val sanitized = AppUpdateService.sanitizeTagForFilename("../../etc/passwd")
+        assertFalse(sanitized.contains("/"))
+        assertFalse(sanitized.contains(".."))
+    }
 }

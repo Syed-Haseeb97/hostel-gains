@@ -21,6 +21,8 @@ import com.hostelgains.domain.workout.WorkoutDayPlan
 import com.hostelgains.domain.workout.WorkoutPlanSerializer
 import com.hostelgains.ui.components.CompensationItemUi
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -89,8 +91,14 @@ class WorkoutViewModel(
         externalScope = externalScope
     )
 
+    private val internalScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val scope: CoroutineScope
-        get() = externalScope ?: CoroutineScope(Dispatchers.Default)
+        get() = externalScope ?: internalScope
+
+    override fun onCleared() {
+        super.onCleared()
+        internalScope.cancel()
+    }
 
     private var _selectedDayIndex: Int = 0
     private var _completedExercises: Set<String> = emptySet()

@@ -8,6 +8,8 @@ import com.hostelgains.domain.steps.DefaultStepAlertEvaluator
 import com.hostelgains.domain.steps.StepAlertEvaluator
 import com.hostelgains.domain.steps.StepAlertResult
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,8 +44,14 @@ class StepTrackerViewModel(
     initialHour: Int = 18
 ) : ViewModel() {
 
+    private val internalScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     private val scope: CoroutineScope
-        get() = externalScope ?: CoroutineScope(Dispatchers.Default)
+        get() = externalScope ?: internalScope
+
+    override fun onCleared() {
+        super.onCleared()
+        internalScope.cancel()
+    }
 
     private val _uiState = MutableStateFlow(
         createState(initialSteps, initialHour, 0, isHardwareSensorActive = sensorSource?.isSensorAvailable == true)

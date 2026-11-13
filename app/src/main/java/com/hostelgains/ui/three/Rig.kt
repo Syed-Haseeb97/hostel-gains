@@ -119,55 +119,16 @@ fun Pose.solve(): SolvedBody {
     )
 }
 
-/** Emits the mannequin. [activation] (0..1) drives how strongly target muscles glow. */
+/**
+ * Emits the articulated 3D anatomical male mesh (`Male-low.OBJ`).
+ * [activation] (0..1) drives how strongly target [muscles] glow on the sculpted facets.
+ */
 fun SceneBuilder.body(b: SolvedBody, muscles: Set<Muscle>, activation: Float, skin: Color = this.skin) {
-    fun g(m: Muscle) = if (m in muscles) activation else 0f
-    val t = b.torso
-    val visor = Color(0xFF2B303B)
-
-    // Pelvis & core
-    capsule(b.hips[0], b.hips[1], 10.5f, 10.5f, skin, glow = g(Muscle.GLUTES))
-    capsule(t.pelvis + t.up * 6f, t.chest - t.up * 4f, 11f, 12f, skin, glow = g(Muscle.CORE))
-
-    // Chest (wide capsule across the ribcage)
-    val chestL = t.pelvis + t.up * 36f + t.fwd * 2.5f - t.right * 8f
-    val chestR = t.pelvis + t.up * 36f + t.fwd * 2.5f + t.right * 8f
-    capsule(chestL, chestR, 12.5f, 12.5f, skin, glow = g(Muscle.CHEST))
-
-    // Lats / upper back wings and traps
-    for (i in 0..1) {
-        val s = if (i == 0) -1f else 1f
-        val armpit = b.shoulders[i] - t.up * 7f - t.right * (s * 3f) - t.fwd * 4f
-        val waist = t.pelvis + t.up * 16f + t.right * (s * 8.5f) - t.fwd * 3f
-        capsule(armpit, waist, 8f, 5.5f, skin, glow = g(Muscle.BACK))
-        capsule(t.neckBase - t.fwd * 2f, b.shoulders[i] - t.fwd * 1f, 5.5f, 5f, skin, glow = g(Muscle.BACK))
-    }
-
-    // Neck & head with a visor so facing direction is always readable
-    capsule(t.neckBase, t.neckBase + t.up * 9f, 5f, 4.6f, skin)
-    ball(t.head, 10.5f, skin)
-    capsule(
-        t.head + t.fwd * 8.6f + t.up * 2f - t.right * 4.6f,
-        t.head + t.fwd * 8.6f + t.up * 2f + t.right * 4.6f,
-        2.6f, 2.6f, visor
-    )
-
-    // Arms
-    for (i in 0..1) {
-        val upperGlow = maxOf(g(Muscle.BICEPS), g(Muscle.TRICEPS))
-        ball(b.shoulders[i], 7.6f, skin, glow = g(Muscle.SHOULDERS))
-        capsule(b.shoulders[i], b.elbows[i], 5.9f, 4.6f, skin, glow = upperGlow)
-        capsule(b.elbows[i], b.hands[i], 4.5f, 3.3f, skin, glow = g(Muscle.FOREARMS))
-        ball(b.hands[i], 4f, skin)
-    }
-
-    // Legs
-    for (i in 0..1) {
-        val thighGlow = maxOf(g(Muscle.QUADS), g(Muscle.HAMSTRINGS))
-        capsule(b.hips[i], b.knees[i], 8.8f, 6f, skin, glow = thighGlow)
-        capsule(b.knees[i], b.ankles[i], 5.8f, 3.8f, skin, glow = g(Muscle.CALVES))
-        capsule(b.ankles[i], b.toes[i], 3.8f, 3f, skin)
-    }
+    val shoulderGlow = if (Muscle.SHOULDERS in muscles) activation else 0f
+    // Internal glenohumeral joint caps ensure zero seam gaps during extreme overhead arm rotations
+    ball(b.shoulders[0], 5.6f, skin, glow = shoulderGlow)
+    ball(b.shoulders[1], 5.6f, skin, glow = shoulderGlow)
+    bodyMesh(b, muscles, activation, skin)
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

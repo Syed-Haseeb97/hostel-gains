@@ -1,18 +1,35 @@
+# IntelliJ / Android Studio
 *.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
-local.properties
+.idea/
+.kotlin/
+
+# Gradle & Build Outputs
+.gradle/
 build/
 app/build/
+captures/
+.externalNativeBuild/
+.cxx/
 *.hprof
+
+# Local Configuration & Secrets
+local.properties
+*.keystore
+*.jks
+*.p12
+*.pem
+.env
+.env.*
+
+# Packaged Binaries
+*.apk
+*.aab
+*.ap_
+*.dex
+
+# Agent / Scratch Logs
+.agents/
+
+# OS Metadata
+.DS_Store
+Thumbs.db

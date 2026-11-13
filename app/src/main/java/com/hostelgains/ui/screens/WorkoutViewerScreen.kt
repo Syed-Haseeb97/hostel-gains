@@ -58,6 +58,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -97,6 +99,7 @@ fun WorkoutViewerScreen(
     val list = state.availableExercises
     val selectedIndex = list.indexOfFirst { it.id == exercise.id }.coerceAtLeast(0)
     val viewState = rememberExercise3DState()
+    val haptics = LocalHapticFeedback.current
     val chipsState = rememberLazyListState()
     var notesExpanded by rememberSaveable { mutableStateOf(false) }
 
@@ -105,6 +108,7 @@ fun WorkoutViewerScreen(
     }
 
     fun step(delta: Int) {
+        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
         val next = (selectedIndex + delta + list.size) % list.size
         viewModel.selectExercise(list[next].id)
     }
@@ -288,6 +292,7 @@ fun WorkoutViewerScreen(
                     options = presets.map { it.label },
                     selectedIndex = presetIndex,
                     onSelect = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
                         viewState.orbit = 0f
                         viewState.zoom = 1f
                         viewModel.setCameraPreset(presets[it])

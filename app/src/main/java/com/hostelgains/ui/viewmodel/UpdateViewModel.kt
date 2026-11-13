@@ -1,11 +1,8 @@
 package com.hostelgains.ui.viewmodel
 
 import android.content.Context
-import android.content.pm.PackageManager
-import android.os.Build
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.hostelgains.app.BuildConfig
 import com.hostelgains.data.update.AppReleaseInfo
 import com.hostelgains.data.update.AppUpdateService
 import com.hostelgains.data.update.DownloadStatus
@@ -15,11 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
-import java.io.File
 
 data class UpdateUiState(
     val isChecking: Boolean = false,
-    val currentInstalledVersion: String = "",
     val releaseInfo: AppReleaseInfo? = null,
     val downloadStatus: DownloadStatus = DownloadStatus.Idle,
     val showInstallDialog: Boolean = false,
@@ -28,9 +23,13 @@ data class UpdateUiState(
 
 class UpdateViewModel(
     private val updateService: AppUpdateService = AppUpdateService(),
-    private val versionOverride: String? = null,
+    private val currentVersion: String = DEFAULT_VERSION_NAME,
     private val externalScope: CoroutineScope? = null
 ) : ViewModel() {
+
+    companion object {
+        const val DEFAULT_VERSION_NAME = "1.3.0"
+    }
 
     private val scope: CoroutineScope
         get() = externalScope ?: viewModelScope
@@ -38,48 +37,21 @@ class UpdateViewModel(
     private val _uiState = MutableStateFlow(UpdateUiState())
     val uiState: StateFlow<UpdateUiState> = _uiState.asStateFlow()
 
-    fun getInstalledVersion(context: Context? = null): String {
-        if (!versionOverride.isNullOrBlank()) {
-            return versionOverride
-        }
-        if (context == null) {
-            return BuildConfig.VERSION_NAME
-        }
-        return try {
-            val pInfo = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                context.packageManager.getPackageInfo(
-                    context.packageName,
-                    PackageManager.PackageInfoFlags.of(0)
-                )
-            } else {
-                @Suppress("DEPRECATION")
-                context.packageManager.getPackageInfo(context.packageName, 0)
-            }
-            pInfo.versionName ?: BuildConfig.VERSION_NAME
-        } catch (e: Exception) {
-            BuildConfig.VERSION_NAME
-        }
-    }
-
     /**
-     * Called on app launch: checks in real time for updates using the dynamically
-     * detected installed version name.
-     * If a newer release is found, downloads the APK in the background.
+     * Checks in real time for updates on launch using the installed package's real versionName
+     * (falling back to [currentVersion] in unit test environments).
      */
     fun checkForUpdatesOnLaunch(context: Context? = null) {
         if (_uiState.value.isChecking) return
 
-        val currentVersion = getInstalledVersion(context)
-        _uiState.value = _uiState.value.copy(
-            isChecking = true,
-            currentInstalledVersion = currentVersion
-        )
+        val resolvedVersion = context?.let { resolveInstalledVersionName(it) } ?: currentVersion
+        _uiState.value = _uiState.value.copy(isChecking = true)
 
         scope.launch {
-            when (val result = updateService.checkForUpdate(currentVersion)) {
+            when (val result = updateService.checkForUpdate(resolvedVersion)) {
                 is UpdateCheckResult.UpdateAvailable -> {
-                    // Double-check semantic version comparison to prevent infinite prompt loops
-                    val isReallyNewer = AppUpdateService.isRemoteVersionNewer(currentVersion, result.releaseInfo.tagName)
+                    // Double check to prevent infinite install loops
+                    val isReallyNewer = AppUpdateService.isRemoteVersionNewer(resolvedVersion, result.releaseInfo.tagName)
                     if (!isReallyNewer) {
                         _uiState.value = _uiState.value.copy(
                             isChecking = false,
@@ -114,6 +86,23 @@ class UpdateViewModel(
         }
     }
 
+    private fun resolveInstalledVersionName(context: Context): String? {
+        return try {
+            val pkgInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
+                context.packageManager?.getPackageInfo(
+                    context.packageName,
+                    android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                context.packageManager?.getPackageInfo(context.packageName, 0)
+            }
+            pkgInfo?.versionName?.takeIf { it.isNotBlank() }
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     private fun startSilentBackgroundDownload(context: Context, releaseInfo: AppReleaseInfo) {
         _uiState.value = _uiState.value.copy(
             downloadStatus = DownloadStatus.Downloading(0)
@@ -144,17 +133,13 @@ class UpdateViewModel(
 
     fun installDownloadedUpdate(context: Context) {
         val ready = _uiState.value.downloadStatus as? DownloadStatus.ReadyToInstall ?: return
-        updateService.triggerInstall(context, ready.apkFile)
-        _uiState.value = _uiState.value.copy(
-            showInstallDialog = false,
-            bannerMessage = null
-        )
+        runCatching {
+            updateService.triggerInstall(context, ready.apkFile)
+        }
+        _uiState.value = _uiState.value.copy(showInstallDialog = false)
     }
 
     fun dismissInstallDialog() {
-        _uiState.value = _uiState.value.copy(
-            showInstallDialog = false,
-            bannerMessage = null
-        )
+        _uiState.value = _uiState.value.copy(showInstallDialog = false)
     }
 }

@@ -1,5 +1,6 @@
 package com.hostelgains.domain.workout
 
+import com.hostelgains.data.network.SharedHttpClient
 import com.hostelgains.domain.physique.ExperienceLevel
 import com.hostelgains.domain.physique.PhysiqueBuild
 import com.hostelgains.domain.physique.UserProfile
@@ -22,9 +23,13 @@ data class GeneratedRoutineResult(
 )
 
 /**
- * Live AI workout routine generator powered by Google Gemini 1.5 Flash.
+ * Live AI workout routine generator powered by Google Gemini.
  * Takes the user's selected [PhysiqueBuild], [ExperienceLevel], and anthropometrics,
  * and generates a customized, scientifically periodized 7-day PPL routine.
+ *
+ * Security hardening:
+ * - Sends API key solely via `x-goog-api-key` HTTP header (never in URL query string).
+ * - Uses [SharedHttpClient] and structured `systemInstruction`.
  */
 class GeminiWorkoutGenerator(
     private val apiKey: String? = null,
@@ -38,7 +43,7 @@ class GeminiWorkoutGenerator(
             "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
 
         val defaultClient: OkHttpClient by lazy {
-            OkHttpClient.Builder()
+            SharedHttpClient.instance.newBuilder()
                 .connectTimeout(20, TimeUnit.SECONDS)
                 .readTimeout(35, TimeUnit.SECONDS)
                 .writeTimeout(20, TimeUnit.SECONDS)
@@ -60,30 +65,14 @@ class GeminiWorkoutGenerator(
 
         try {
             val prompt = buildPrompt(profile)
-            val escapedPrompt = SimpleJsonParser.escape(prompt)
-            val jsonPayload = """
-                {
-                  "contents": [
-                    {
-                      "parts": [
-                        { "text": "$escapedPrompt" }
-                      ]
-                    }
-                  ],
-                  "generationConfig": {
-                    "temperature": 0.3,
-                    "responseMimeType": "application/json"
-                  }
-                }
-            """.trimIndent()
-
-            val targetUrl = if (baseUrl.contains("key=")) baseUrl else {
-                val delimiter = if (baseUrl.contains("?")) "&" else "?"
-                "$baseUrl${delimiter}key=$key"
-            }
+            val jsonPayload = SimpleJsonParser.buildGeminiRequestJson(
+                userText = prompt,
+                systemInstruction = "You are an elite sports scientist and strength coach. Output strictly valid JSON matching the requested schema.",
+                temperature = 0.3
+            )
 
             val request = Request.Builder()
-                .url(targetUrl)
+                .url(baseUrl)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("x-goog-api-key", key)
                 .post(jsonPayload.toRequestBody("application/json; charset=utf-8".toMediaType()))
@@ -129,7 +118,6 @@ class GeminiWorkoutGenerator(
         val level = profile.experienceLevel
 
         return """
-        You are an elite sports scientist and strength coach.
         Generate a fully customized 7-Day Push/Pull/Legs (PPL) + Active Recovery workout routine for a university student.
         
         STUDENT PROFILE:
@@ -197,22 +185,7 @@ class GeminiWorkoutGenerator(
 
     private fun parseGeminiResponse(rawBody: String, profile: UserProfile): GeneratedRoutineResult? {
         return try {
-            val rootNode = SimpleJsonParser.parse(rawBody) ?: return null
-            val candidates = (rootNode["candidates"] as? SimpleJsonParser.Node.ArrayNode)?.list ?: return null
-            if (candidates.isEmpty()) return null
-            val firstCandidate = candidates[0] as? SimpleJsonParser.Node.ObjectNode ?: return null
-            val content = firstCandidate["content"] as? SimpleJsonParser.Node.ObjectNode ?: return null
-            val parts = (content["parts"] as? SimpleJsonParser.Node.ArrayNode)?.list ?: return null
-            if (parts.isEmpty()) return null
-            val firstPart = parts[0] as? SimpleJsonParser.Node.ObjectNode ?: return null
-            val rawText = (firstPart["text"] as? SimpleJsonParser.Node.StringNode)?.value ?: return null
-
-            val cleanedText = rawText.trim()
-                .removePrefix("```json")
-                .removePrefix("```")
-                .removeSuffix("```")
-                .trim()
-
+            val cleanedText = SimpleJsonParser.extractGeminiCandidateText(rawBody) ?: return null
             val pair = WorkoutPlanSerializer.fromJson(cleanedText) ?: return null
             GeneratedRoutineResult(
                 coachRationale = pair.first.ifBlank { "Customized ${profile.targetBuild.title} routine tailored for ${profile.experienceLevel.title} level." },

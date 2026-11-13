@@ -1,13 +1,14 @@
 package com.hostelgains.domain.physique
 
 import com.hostelgains.data.ApiKeyRepository
+import com.hostelgains.data.network.SharedHttpClient
+import com.hostelgains.domain.util.SimpleJsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 data class PhysiqueOptimizationResult(
@@ -23,14 +24,25 @@ data class PhysiqueOptimizationResult(
 /**
  * Tailors a student's training volume and nutrition to their exact height, weight,
  * age, and chosen physique build pathway using Google Gemini API or sports-science offline engine.
+ *
+ * Security & resource hardening:
+ * - Closes OkHttp [okhttp3.Response] bodies deterministically via `.use { ... }`.
+ * - Sends the API key strictly via the `x-goog-api-key` header (never in URL query parameters).
+ * - Uses [SimpleJsonParser] instead of Android `org.json` stubs for local JVM test compatibility.
  */
 class GeminiPhysiqueOptimizer(
     private val apiKeyRepository: ApiKeyRepository,
-    private val client: OkHttpClient = OkHttpClient.Builder()
+    private val client: OkHttpClient = SharedHttpClient.instance.newBuilder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
-        .build()
+        .build(),
+    private val baseUrl: String = DEFAULT_BASE_URL
 ) {
+
+    companion object {
+        const val DEFAULT_BASE_URL =
+            "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    }
 
     suspend fun optimizePlan(profile: UserProfile): PhysiqueOptimizationResult = withContext(Dispatchers.IO) {
         val apiKey = apiKeyRepository.getApiKey()
@@ -40,40 +52,31 @@ class GeminiPhysiqueOptimizer(
 
         try {
             val prompt = buildOptimizationPrompt(profile)
-            val jsonBody = JSONObject().apply {
-                put("contents", org.json.JSONArray().apply {
-                    put(JSONObject().apply {
-                        put("parts", org.json.JSONArray().apply {
-                            put(JSONObject().apply {
-                                put("text", prompt)
-                            })
-                        })
-                    })
-                })
-                put("generationConfig", JSONObject().apply {
-                    put("temperature", 0.2)
-                    put("responseMimeType", "application/json")
-                })
-            }
+            val payload = SimpleJsonParser.buildGeminiRequestJson(
+                userText = prompt,
+                systemInstruction = "You are an elite sports science biomechanist and physique coach for university hostel students. Provide tailored advice in strict JSON format.",
+                temperature = 0.2
+            )
 
             val cleanKey = apiKey.trim()
-            val targetUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=$cleanKey"
-
             val request = Request.Builder()
-                .url(targetUrl)
+                .url(baseUrl)
                 .addHeader("Content-Type", "application/json")
                 .addHeader("x-goog-api-key", cleanKey)
-                .post(jsonBody.toString().toRequestBody("application/json".toMediaType()))
+                .post(payload.toRequestBody("application/json; charset=utf-8".toMediaType()))
                 .build()
 
-            val response = client.newCall(request).execute()
-            if (!response.isSuccessful) {
-                return@withContext OfflinePhysiqueOptimizer.optimize(profile)
-            }
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext OfflinePhysiqueOptimizer.optimize(profile)
+                }
 
-            val rawBody = response.body.string()
-            val parsedResult = parseGeminiResponse(rawBody, profile)
-            parsedResult ?: OfflinePhysiqueOptimizer.optimize(profile)
+                val rawBody = response.body.string()
+                if (rawBody.isBlank()) {
+                    return@withContext OfflinePhysiqueOptimizer.optimize(profile)
+                }
+                parseGeminiResponse(rawBody, profile) ?: OfflinePhysiqueOptimizer.optimize(profile)
+            }
         } catch (e: Exception) {
             OfflinePhysiqueOptimizer.optimize(profile)
         }
@@ -81,7 +84,6 @@ class GeminiPhysiqueOptimizer(
 
     private fun buildOptimizationPrompt(profile: UserProfile): String {
         return """
-        You are an elite sports science biomechanist and physique coach for university hostel students.
         Analyze this student's anthropometric stats:
         - Height: ${profile.heightCm} cm (${profile.heightImperialFormatted})
         - Weight: ${profile.weightKg} kg (${profile.weightFormatted})
@@ -105,23 +107,30 @@ class GeminiPhysiqueOptimizer(
         """.trimIndent()
     }
 
-    private fun parseGeminiResponse(rawBody: String, profile: UserProfile): PhysiqueOptimizationResult? {
+    internal fun parseGeminiResponse(rawBody: String, profile: UserProfile): PhysiqueOptimizationResult? {
         return try {
-            val root = JSONObject(rawBody)
-            val candidates = root.getJSONArray("candidates")
-            if (candidates.length() == 0) return null
-            val content = candidates.getJSONObject(0).getJSONObject("content")
-            val parts = content.getJSONArray("parts")
-            val text = parts.getJSONObject(0).getString("text")
+            val cleanedText = SimpleJsonParser.extractGeminiCandidateText(rawBody) ?: return null
+            val json = SimpleJsonParser.parse(cleanedText) as? SimpleJsonParser.Node.ObjectNode ?: return null
 
-            val json = JSONObject(text)
             PhysiqueOptimizationResult(
-                dailyCalories = json.optInt("dailyCalories", profile.recommendedCalories),
-                proteinGrams = json.optInt("proteinGrams", profile.recommendedProteinGrams),
-                volumeFocus = json.optString("volumeFocus", "${profile.targetBuild.title} volume calibrated to ${profile.weightKg.toInt()} kg frame."),
-                leverageAdvice = json.optString("leverageAdvice", "Maintain 2-second eccentric control on all compound presses and pulls."),
-                hostelMessStrategy = json.optString("hostelMessStrategy", "Double up on dal bowls and eggs/paneer during mess dinner."),
-                fullSummary = json.optString("fullSummary", "At ${profile.heightImperialFormatted} and ${profile.weightKg.toInt()} kg, your frame is perfectly primed for ${profile.targetBuild.title}."),
+                dailyCalories = json.optInt("dailyCalories", profile.recommendedCalories).coerceIn(1200, 6000),
+                proteinGrams = json.optInt("proteinGrams", profile.recommendedProteinGrams).coerceIn(40, 400),
+                volumeFocus = json.optString(
+                    "volumeFocus",
+                    "${profile.targetBuild.title} volume calibrated to ${profile.weightKg.toInt()} kg frame."
+                ).take(250),
+                leverageAdvice = json.optString(
+                    "leverageAdvice",
+                    "Maintain 2-second eccentric control on all compound presses and pulls."
+                ).take(300),
+                hostelMessStrategy = json.optString(
+                    "hostelMessStrategy",
+                    "Double up on dal bowls and eggs/paneer during mess dinner."
+                ).take(300),
+                fullSummary = json.optString(
+                    "fullSummary",
+                    "At ${profile.heightImperialFormatted} and ${profile.weightKg.toInt()} kg, your frame is primed for ${profile.targetBuild.title}."
+                ).take(400),
                 isAiGenerated = true
             )
         } catch (e: Exception) {

@@ -5,6 +5,11 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import coil.Coil
+import coil.ImageLoader
+import coil.disk.DiskCache
+import coil.memory.MemoryCache
+import java.io.File
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -36,6 +41,25 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        // Configure mobile-optimized singleton Coil ImageLoader (bounded 15% RAM + 50MB disk cache)
+        Coil.setImageLoader {
+            ImageLoader.Builder(applicationContext)
+                .memoryCache {
+                    MemoryCache.Builder(applicationContext)
+                        .maxSizePercent(0.15)
+                        .build()
+                }
+                .diskCache {
+                    DiskCache.Builder()
+                        .directory(File(applicationContext.cacheDir, "image_cache"))
+                        .maxSizeBytes(50L * 1024L * 1024L)
+                        .build()
+                }
+                .crossfade(true)
+                .allowHardware(true)
+                .build()
+        }
 
         // 1. Arm all 5 daily hostel meal & workout reminders
         MealReminderScheduler.scheduleAllReminders(applicationContext)

@@ -4,7 +4,7 @@ import com.hostelgains.domain.util.SimpleJsonParser
 
 /**
  * Pure Kotlin serializer and deserializer for dynamic Gemini-generated [WorkoutDayPlan] lists.
- * Safe across both Android runtime and local JVM unit tests.
+ * Safe across both Android runtime and local JVM unit tests, with numeric bounds clamping.
  */
 object WorkoutPlanSerializer {
 
@@ -55,35 +55,35 @@ object WorkoutPlanSerializer {
     fun fromJson(jsonStr: String): Pair<String, List<WorkoutDayPlan>>? {
         val rootNode = SimpleJsonParser.parse(jsonStr) as? SimpleJsonParser.Node.ObjectNode ?: return null
 
-        val coachRationale = (rootNode["coachRationale"] as? SimpleJsonParser.Node.StringNode)?.value ?: ""
+        val coachRationale = rootNode.optString("coachRationale", "").take(500)
         val daysArray = (rootNode["days"] as? SimpleJsonParser.Node.ArrayNode)?.list ?: return null
         val plans = mutableListOf<WorkoutDayPlan>()
 
-        for (i in daysArray.indices) {
+        for (i in daysArray.take(7).indices) {
             val dayNode = daysArray[i] as? SimpleJsonParser.Node.ObjectNode ?: continue
-            val dayNumber = (dayNode["dayNumber"] as? SimpleJsonParser.Node.NumberNode)?.value?.toInt() ?: (i + 1)
-            val dayName = (dayNode["dayName"] as? SimpleJsonParser.Node.StringNode)?.value ?: "Day $dayNumber"
-            val focusArea = (dayNode["focusArea"] as? SimpleJsonParser.Node.StringNode)?.value ?: "General Training"
-            val guidanceNotes = (dayNode["guidanceNotes"] as? SimpleJsonParser.Node.StringNode)?.value ?: ""
-            val isActiveRest = (dayNode["isActiveRest"] as? SimpleJsonParser.Node.BooleanNode)?.value ?: false
+            val dayNumber = dayNode.optInt("dayNumber", i + 1).coerceIn(1, 7)
+            val dayName = dayNode.optString("dayName", "Day $dayNumber").take(80)
+            val focusArea = dayNode.optString("focusArea", "General Training").take(100)
+            val guidanceNotes = dayNode.optString("guidanceNotes", "").take(300)
+            val isActiveRest = dayNode.optBoolean("isActiveRest", false)
 
             val exercises = mutableListOf<Exercise>()
             val exArray = (dayNode["exercises"] as? SimpleJsonParser.Node.ArrayNode)?.list
             if (exArray != null) {
-                for (j in exArray.indices) {
+                for (j in exArray.take(15).indices) {
                     val exNode = exArray[j] as? SimpleJsonParser.Node.ObjectNode ?: continue
-                    val id = (exNode["id"] as? SimpleJsonParser.Node.StringNode)?.value ?: "ex_${dayNumber}_$j"
-                    val name = (exNode["name"] as? SimpleJsonParser.Node.StringNode)?.value ?: "Exercise $j"
-                    val muscleStr = (exNode["targetMuscle"] as? SimpleJsonParser.Node.StringNode)?.value ?: "BACK"
-                    val catStr = (exNode["category"] as? SimpleJsonParser.Node.StringNode)?.value ?: "COMPOUND_PULL"
-                    val sets = (exNode["baselineSets"] as? SimpleJsonParser.Node.NumberNode)?.value?.toInt() ?: 3
-                    val repRange = (exNode["repRange"] as? SimpleJsonParser.Node.StringNode)?.value ?: "8-12 reps"
-                    val restSec = (exNode["restSeconds"] as? SimpleJsonParser.Node.NumberNode)?.value?.toInt() ?: 90
-                    val formNotes = (exNode["formNotes"] as? SimpleJsonParser.Node.StringNode)?.value ?: ""
-                    val isComp = (exNode["isCompensatoryEligibleCarb"] as? SimpleJsonParser.Node.BooleanNode)?.value ?: true
+                    val id = exNode.optString("id", "ex_${dayNumber}_$j").take(60)
+                    val name = exNode.optString("name", "Exercise $j").take(80)
+                    val muscleStr = exNode.optString("targetMuscle", "BACK")
+                    val catStr = exNode.optString("category", "COMPOUND_PULL")
+                    val sets = exNode.optInt("baselineSets", 3).coerceIn(1, 15)
+                    val repRange = exNode.optString("repRange", "8-12 reps").take(40)
+                    val restSec = exNode.optInt("restSeconds", 90).coerceIn(15, 600)
+                    val formNotes = exNode.optString("formNotes", "").take(250)
+                    val isComp = exNode.optBoolean("isCompensatoryEligibleCarb", true)
 
-                    val muscle = runCatching { MuscleGroup.valueOf(muscleStr) }.getOrDefault(MuscleGroup.BACK)
-                    val category = runCatching { ExerciseCategory.valueOf(catStr) }.getOrDefault(ExerciseCategory.COMPOUND_PULL)
+                    val muscle = runCatching { MuscleGroup.valueOf(muscleStr.uppercase()) }.getOrDefault(MuscleGroup.BACK)
+                    val category = runCatching { ExerciseCategory.valueOf(catStr.uppercase()) }.getOrDefault(ExerciseCategory.COMPOUND_PULL)
 
                     exercises.add(
                         Exercise(
