@@ -36,7 +36,7 @@ sealed interface DownloadStatus {
 /**
  * Real-time update service querying GitHub Releases API for Syed-Haseeb97/hostel-gains.
  */
-class AppUpdateService(
+open class AppUpdateService(
     private val client: OkHttpClient = defaultClient,
     private val owner: String = "Syed-Haseeb97",
     private val repo: String = "hostel-gains"
@@ -72,7 +72,7 @@ class AppUpdateService(
         }
     }
 
-    suspend fun checkForUpdate(currentVersionName: String): UpdateCheckResult = withContext(Dispatchers.IO) {
+    open suspend fun checkForUpdate(currentVersionName: String): UpdateCheckResult = withContext(Dispatchers.IO) {
         val url = "https://api.github.com/repos/$owner/$repo/releases/latest"
         val request = Request.Builder()
             .url(url)
@@ -109,7 +109,7 @@ class AppUpdateService(
         }
     }
 
-    suspend fun downloadApk(
+    open suspend fun downloadApk(
         context: Context,
         releaseInfo: AppReleaseInfo,
         onProgress: (Int) -> Unit = {}

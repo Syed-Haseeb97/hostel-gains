@@ -6,14 +6,14 @@
 [![Language: Kotlin](https://img.shields.io/badge/Language-Kotlin_2.0-7F52FF?style=for-the-badge&logo=kotlin&logoColor=white)](https://kotlinlang.org)
 [![UI: Jetpack Compose](https://img.shields.io/badge/UI-Jetpack_Compose_BOM-4285F4?style=for-the-badge&logo=jetpackcompose&logoColor=white)](https://developer.android.com/jetpack/compose)
 [![Database: Room](https://img.shields.io/badge/Database-Room_SQLite-FF6F00?style=for-the-badge&logo=sqlite&logoColor=white)](https://developer.android.com/training/data-storage/room)
-[![Tests: 313 Passing](https://img.shields.io/badge/Unit_Tests-313_Passing_(100%25)-C6FF3D?style=for-the-badge&logo=checkmarx&logoColor=black)](#automated-testing)
-[![Latest Release](https://img.shields.io/badge/Release-v1.2.0-FF5A36?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Syed-Haseeb97/hostel-gains/releases/latest)
+[![Tests: 315 Passing](https://img.shields.io/badge/Unit_Tests-315_Passing_(100%25)-C6FF3D?style=for-the-badge&logo=checkmarx&logoColor=black)](#automated-testing)
+[![Latest Release](https://img.shields.io/badge/Release-v1.2.1-FF5A36?style=for-the-badge&logo=github&logoColor=white)](https://github.com/Syed-Haseeb97/hostel-gains/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-38BDF8?style=for-the-badge)](#license)
 
 ---
 
 ## 📲 Quick Download
-- 📥 **Download APK Directly**: [**hostel-gains-v1.2.0.apk** (GitHub Releases)](https://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.2.0/hostel-gains-v1.2.0.apk)
+- 📥 **Download APK Directly**: [**hostel-gains-v1.2.1.apk** (GitHub Releases)](https://github.com/Syed-Haseeb97/hostel-gains/releases/download/v1.2.1/hostel-gains-v1.2.1.apk)
 - 🔄 **In-App Auto-Updates**: The app checks GitHub Releases in real-time on every launch and downloads/installs newer versions seamlessly in the background.
 
 ---
