@@ -30,7 +30,9 @@ import com.hostelgains.ui.components.UpdateBanner
 import com.hostelgains.ui.components.UpdateReadyDialog
 import com.hostelgains.ui.screens.ApiKeyOnboardingScreen
 import com.hostelgains.ui.screens.MealInputScreen
+import com.hostelgains.ui.screens.ProgressScreen
 import com.hostelgains.ui.screens.StepStatusScreen
+import com.hostelgains.ui.screens.TodayScreen
 import com.hostelgains.ui.screens.WorkoutPlanScreen
 import com.hostelgains.ui.screens.WorkoutViewerScreen
 import com.hostelgains.ui.theme.Canvas0
@@ -86,6 +88,7 @@ fun HostelGainsApp(
 
     val liveKey: String? = apiKeyViewModel.getStoredKey()
     var currentTab by remember { mutableStateOf(initialTab) }
+    var activeViewerExerciseId by remember { mutableStateOf<String?>(null) }
 
     // If initialTab changes (e.g. from push notification navigation intent), switch tab
     LaunchedEffect(initialTab) {
@@ -93,8 +96,12 @@ fun HostelGainsApp(
     }
 
     // System back returns to the first tab before leaving the app.
-    BackHandler(enabled = currentTab != NavigationTab.MEALS) {
-        currentTab = NavigationTab.MEALS
+    BackHandler(enabled = activeViewerExerciseId != null || currentTab != NavigationTab.TODAY) {
+        if (activeViewerExerciseId != null) {
+            activeViewerExerciseId = null
+        } else {
+            currentTab = NavigationTab.TODAY
+        }
     }
 
     Scaffold(
@@ -104,7 +111,10 @@ fun HostelGainsApp(
         bottomBar = {
             HostelBottomNavigation(
                 currentTab = currentTab,
-                onTabSelected = { currentTab = it }
+                onTabSelected = { 
+                    activeViewerExerciseId = null
+                    currentTab = it 
+                }
             )
         }
     ) { innerPadding ->
@@ -135,34 +145,50 @@ fun HostelGainsApp(
             )
 
             Box(modifier = Modifier.weight(1f)) {
-                Crossfade(targetState = currentTab, animationSpec = tween(220), label = "tab") { tab ->
-                when (tab) {
-                    NavigationTab.MEALS -> {
-                        MealInputScreen(
-                            viewModel = mealLogViewModel,
-                            isPremiumAi = liveKey != null,
-                            onUnlockAiClicked = { apiKeyViewModel.showOnboardingAgain() }
-                        )
-                    }
-                    NavigationTab.WORKOUT -> {
-                        WorkoutPlanScreen(
-                            viewModel = workoutViewModel,
-                            profileViewModel = physiqueProfileViewModel,
-                            isPremiumAi = liveKey != null,
-                            onUnlockAiClicked = { apiKeyViewModel.showOnboardingAgain() },
-                            onNavigateToViewer = { exerciseId ->
-                                workoutViewerViewModel.selectExercise(exerciseId)
-                                currentTab = NavigationTab.VIEWER_3D
+                if (activeViewerExerciseId != null) {
+                    WorkoutViewerScreen(viewModel = workoutViewerViewModel)
+                } else {
+                    Crossfade(targetState = currentTab, animationSpec = tween(220), label = "tab") { tab ->
+                        when (tab) {
+                            NavigationTab.TODAY -> {
+                                TodayScreen(
+                                    mealLogViewModel = mealLogViewModel,
+                                    workoutViewModel = workoutViewModel,
+                                    onNavigateToMeals = { currentTab = NavigationTab.MEALS },
+                                    onNavigateToWorkout = { currentTab = NavigationTab.WORKOUT }
+                                )
                             }
-                        )
+                            NavigationTab.MEALS -> {
+                                MealInputScreen(
+                                    viewModel = mealLogViewModel,
+                                    isPremiumAi = liveKey != null,
+                                    onUnlockAiClicked = { apiKeyViewModel.showOnboardingAgain() }
+                                )
+                            }
+                            NavigationTab.WORKOUT -> {
+                                WorkoutPlanScreen(
+                                    viewModel = workoutViewModel,
+                                    profileViewModel = physiqueProfileViewModel,
+                                    isPremiumAi = liveKey != null,
+                                    onUnlockAiClicked = { apiKeyViewModel.showOnboardingAgain() },
+                                    onNavigateToViewer = { exerciseId ->
+                                        workoutViewerViewModel.selectExercise(exerciseId)
+                                        activeViewerExerciseId = exerciseId
+                                    }
+                                )
+                            }
+                            NavigationTab.PROGRESS -> {
+                                ProgressScreen(
+                                    mealLogViewModel = mealLogViewModel,
+                                    stepTrackerViewModel = stepTrackerViewModel,
+                                    onNavigateToViewer3D = {
+                                        workoutViewerViewModel.selectExercise("d1_lat_pulldown")
+                                        activeViewerExerciseId = "d1_lat_pulldown"
+                                    }
+                                )
+                            }
+                        }
                     }
-                    NavigationTab.VIEWER_3D -> {
-                        WorkoutViewerScreen(viewModel = workoutViewerViewModel)
-                    }
-                    NavigationTab.STEPS -> {
-                        StepStatusScreen(viewModel = stepTrackerViewModel)
-                    }
-                }
                 }
             }
         }

@@ -26,7 +26,7 @@ import com.hostelgains.ui.viewmodel.ApiKeyViewModel
 
 class MainActivity : ComponentActivity() {
     private lateinit var apiKeyViewModel: ApiKeyViewModel
-    private var selectedTab by mutableStateOf(NavigationTab.MEALS)
+    private var selectedTab by mutableStateOf(NavigationTab.TODAY)
 
     private val requestNotificationPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
@@ -153,10 +153,11 @@ class MainActivity : ComponentActivity() {
         val targetTabName = intent?.getStringExtra("target_tab")
         if (targetTabName != null) {
             selectedTab = when (targetTabName) {
+                "TODAY" -> NavigationTab.TODAY
                 "WORKOUT" -> NavigationTab.WORKOUT
-                "VIEWER_3D" -> NavigationTab.VIEWER_3D
-                "STEPS" -> NavigationTab.STEPS
-                else -> NavigationTab.MEALS
+                "MEALS" -> NavigationTab.MEALS
+                "PROGRESS", "STEPS" -> NavigationTab.PROGRESS
+                else -> NavigationTab.TODAY
             }
         }
     }
