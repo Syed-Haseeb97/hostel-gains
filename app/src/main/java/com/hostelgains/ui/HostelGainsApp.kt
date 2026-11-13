@@ -22,7 +22,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.hostelgains.domain.nutrition.GeminiNutritionParser
 import com.hostelgains.domain.rebalance.GeminiWorkoutRebalancer
+import com.hostelgains.ui.components.ApiKeyReminderBanner
 import com.hostelgains.ui.components.HostelBottomNavigation
+import com.hostelgains.ui.components.HostelGainsTopBar
 import com.hostelgains.ui.components.NavigationTab
 import com.hostelgains.ui.components.UpdateBanner
 import com.hostelgains.ui.components.UpdateReadyDialog
@@ -111,6 +113,21 @@ fun HostelGainsApp(
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
+            // Top brand bar with Sir Whiskers Gym Cat & Gemini AI status
+            HostelGainsTopBar(
+                statusMessage = apiKeyUiState.statusMessage ?: if (liveKey != null) "🟢 Gemini AI Connected" else "⚠️ AI Key Needed",
+                isKeyValid = apiKeyUiState.isKeyValid || liveKey != null,
+                onAiBadgeClick = { apiKeyViewModel.showOnboardingAgain() }
+            )
+
+            // Live Gemini API Key Reminder Banner when key is missing or invalid
+            if (apiKeyUiState.showApiKeyReminder || liveKey == null) {
+                ApiKeyReminderBanner(
+                    onEnterKey = { apiKeyViewModel.showOnboardingAgain() },
+                    onDismiss = { apiKeyViewModel.dismissApiKeyReminder() }
+                )
+            }
+
             // Live background download progress banner
             UpdateBanner(
                 uiState = updateUiState,

@@ -481,6 +481,30 @@ class OfflineWorkoutRebalancer : WorkoutRebalancer {
             )
         }
 
+        // 4b. Too Heavy / Lighter Weight / Dumbbells too heavy
+        if (lower.contains("too heavy") || lower.contains("heavy") || lower.contains("lighter") || lower.contains("reduce weight")) {
+            val adjusted = currentExercises.map { ex ->
+                if (ex.name.contains("Dumbbell", ignoreCase = true) || ex.name.contains("DB", ignoreCase = true)) {
+                    ex.copy(
+                        repRange = "12-15 reps (Light weight / form focus)",
+                        formNotes = "Reduced working load: prioritize controlled tempo and smooth contractions over heavy weight."
+                    )
+                } else if (ex.baselineSets > 3) {
+                    ex.copy(baselineSets = ex.baselineSets - 1)
+                } else {
+                    ex
+                }
+            }
+            return Result.success(
+                CustomizedWorkoutResult(
+                    customizedExercises = adjusted,
+                    coachMessage = "Adjusted workout for lighter load. Reduced dumbbell working weights and rep targets so you can focus on clean form without straining.",
+                    reason = "Lighter working load applied",
+                    isAiGenerated = false
+                )
+            )
+        }
+
         // 5. Swap / Replace exercise ("swap X for Y", "replace X with Y", "use Y instead of X")
         val isSwapRequest = lower.contains("swap") || lower.contains("replace") || lower.contains("instead of")
         if (isSwapRequest) {
@@ -498,7 +522,7 @@ class OfflineWorkoutRebalancer : WorkoutRebalancer {
                     exName.contains("press") && lower.contains("press") -> true
                     else -> lower.contains(exName)
                 }
-            } ?: currentExercises.firstOrNull()
+            }
 
             if (targetExercise != null) {
                 val replacement = when {

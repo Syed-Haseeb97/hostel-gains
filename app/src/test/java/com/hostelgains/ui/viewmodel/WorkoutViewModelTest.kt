@@ -235,6 +235,20 @@ class WorkoutViewModelTest {
     }
 
     @Test
+    fun testPromptDumbbellsTooHeavy_doesNotRemoveLatPulldown() {
+        viewModel.selectDay(0) // Day 1: Pull A (includes Lat Pulldown)
+        viewModel.rebalanceFromPrompt("bro dumbells are too heavy")
+        Thread.sleep(50)
+
+        val state = viewModel.uiState.value
+        // Lat Pulldowns must still be present and not skipped!
+        val latPulldown = state.adjustedPlan.exercises.find { it.baseExercise.id == "d1_lat_pulldown" }
+        assertNotNull("Lat pulldown must remain in the workout when user complains about dumbbells", latPulldown)
+        assertFalse("Lat pulldown should not be skipped", state.rebalanceState.skippedExerciseId == "d1_lat_pulldown")
+        assertTrue("Workout customization must be marked active", state.rebalanceState.isCustomized)
+    }
+
+    @Test
     fun testToggleExerciseCompleted_tracksDoneStatus() {
         assertFalse(viewModel.uiState.value.completedExerciseIds.contains("d1_lat_pulldown"))
         viewModel.toggleExerciseCompleted("d1_lat_pulldown")

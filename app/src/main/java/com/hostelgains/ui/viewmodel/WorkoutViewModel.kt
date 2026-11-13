@@ -345,29 +345,27 @@ class WorkoutViewModel(
         val dayPlan = dynamicWorkoutRepository.getDayPlan(_selectedDayIndex + 1, _activeBuild)
         val lowerPrompt = trimmed.lowercase()
 
-        val isCustomization = lowerPrompt.contains("swap") || lowerPrompt.contains("replace") ||
-                lowerPrompt.contains("add ") || lowerPrompt.startsWith("add") ||
-                lowerPrompt.contains("remove ") || lowerPrompt.startsWith("remove") ||
-                lowerPrompt.contains("drop ") || lowerPrompt.startsWith("drop") ||
-                lowerPrompt.contains("dumbbell only") || lowerPrompt.contains("only db") ||
-                lowerPrompt.contains("shorten") || lowerPrompt.contains("deload") ||
-                lowerPrompt.contains("light day") || lowerPrompt.contains("heavy day") ||
-                lowerPrompt.contains("instead of")
+        val isExplicitSkip = (lowerPrompt.contains("skip") || lowerPrompt.contains("missed") ||
+                lowerPrompt.contains("cannot do") || lowerPrompt.contains("can't do") ||
+                (lowerPrompt.contains("hurt") && !lowerPrompt.contains("don't")) ||
+                lowerPrompt.contains("pain"))
 
-        if (!isCustomization) {
-            val matchedExercise = dayPlan.exercises.firstOrNull { ex ->
+        val matchedExerciseForSkip = if (isExplicitSkip) {
+            dayPlan.exercises.firstOrNull { ex ->
                 val lowerName = ex.name.lowercase()
                 when {
                     lowerName.contains("lat pulldown") && (lowerPrompt.contains("lat pulldown") || lowerPrompt.contains("pulldown") || lowerPrompt.contains("machine")) -> true
-                    lowerName.contains("incline dumbbell press") && (lowerPrompt.contains("incline db") || lowerPrompt.contains("incline press") || lowerPrompt.contains("wrist") || lowerPrompt.contains("press")) -> true
+                    lowerName.contains("incline dumbbell press") && (lowerPrompt.contains("incline db") || lowerPrompt.contains("incline press") || lowerPrompt.contains("incline") || (lowerPrompt.contains("press") && !lowerPrompt.contains("leg press"))) -> true
                     lowerName.contains("squat") && (lowerPrompt.contains("squat") || lowerPrompt.contains("leg")) -> true
                     lowerName.contains("curl") && lowerPrompt.contains("curl") -> true
                     lowerName.contains("row") && lowerPrompt.contains("row") -> true
                     lowerName.contains("lateral raise") && lowerPrompt.contains("lateral") -> true
                     else -> lowerPrompt.contains(lowerName)
                 }
-            } ?: dayPlan.exercises.firstOrNull() ?: return
+            }
+        } else null
 
+        if (matchedExerciseForSkip != null) {
             val reason = when {
                 trimmed.contains("wrist", ignoreCase = true) || trimmed.contains("hurt", ignoreCase = true) || trimmed.contains("pain", ignoreCase = true) -> "Joint/wrist strain reported"
                 trimmed.contains("machine", ignoreCase = true) || trimmed.contains("busy", ignoreCase = true) || trimmed.contains("occupied", ignoreCase = true) -> "Equipment unavailable in gym"
@@ -375,17 +373,17 @@ class WorkoutViewModel(
             }
 
             // Apply immediate deterministic compensation for instant UI response and test stability
-            skipExercise(matchedExercise.id, reason)
+            skipExercise(matchedExerciseForSkip.id, reason)
 
             // If Gemini AI is connected, enrich the coach message and rationale asynchronously
             val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
             if (!apiKey.isNullOrBlank()) {
                 scope.launch {
-                    val result = workoutRebalancer.rebalanceWorkout(dayPlan, matchedExercise.id, trimmed)
+                    val result = workoutRebalancer.rebalanceWorkout(dayPlan, matchedExerciseForSkip.id, trimmed)
                     result.onSuccess { rebalanceResult ->
                         if (rebalanceResult.isAiGenerated) {
                             val cur = _rebalanceState
-                            if (cur.isRebalanced && cur.skippedExerciseId == matchedExercise.id) {
+                            if (cur.isRebalanced && cur.skippedExerciseId == matchedExerciseForSkip.id) {
                                 val newRebalance = cur.copy(
                                     coachMessage = rebalanceResult.coachMessage
                                 )
@@ -396,23 +394,8 @@ class WorkoutViewModel(
                 }
             }
         } else {
-            // Apply immediate deterministic customization
+            // General customization / AI coaching request
             scope.launch {
-                val offlineCustomizer = com.hostelgains.domain.rebalance.OfflineWorkoutRebalancer()
-                val offlineResult = offlineCustomizer.customizeWorkout(dayPlan, trimmed)
-                offlineResult.onSuccess { res ->
-                    val newRebalance = RebalanceState(
-                        isRebalanced = true,
-                        isCustomized = true,
-                        reason = res.reason.ifEmpty { trimmed },
-                        coachMessage = res.coachMessage,
-                        customizedExercises = res.customizedExercises,
-                        isCardExpanded = true
-                    )
-                    updateState(rebalance = newRebalance)
-                }
-
-                // If Gemini AI is connected, invoke dynamic AI customization asynchronously
                 val apiKey = AppRepositories.apiKeyRepository?.getApiKey()
                 if (!apiKey.isNullOrBlank()) {
                     val geminiResult = workoutRebalancer.customizeWorkout(dayPlan, trimmed)
@@ -427,8 +410,29 @@ class WorkoutViewModel(
                                 isCardExpanded = true
                             )
                             updateState(rebalance = newRebalance)
+                            return@launch
                         }
                     }
+                }
+
+                // Deterministic offline customizer fallback or when no API key is stored
+                val offlineCustomizer = com.hostelgains.domain.rebalance.OfflineWorkoutRebalancer()
+                val offlineResult = offlineCustomizer.customizeWorkout(dayPlan, trimmed)
+                offlineResult.onSuccess { res ->
+                    val coachMsg = if (apiKey.isNullOrBlank()) {
+                        "${res.coachMessage}\n\n💡 Tip: Connect your Gemini API key in the top bar for live conversational AI adjustments!"
+                    } else {
+                        res.coachMessage
+                    }
+                    val newRebalance = RebalanceState(
+                        isRebalanced = true,
+                        isCustomized = true,
+                        reason = res.reason.ifEmpty { trimmed },
+                        coachMessage = coachMsg,
+                        customizedExercises = res.customizedExercises,
+                        isCardExpanded = true
+                    )
+                    updateState(rebalance = newRebalance)
                 }
             }
         }

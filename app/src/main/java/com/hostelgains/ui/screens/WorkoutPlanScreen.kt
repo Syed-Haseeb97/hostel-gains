@@ -1,9 +1,13 @@
 package com.hostelgains.ui.screens
 
 import androidx.compose.animation.animateColorAsState
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import com.hostelgains.app.R
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -99,12 +103,12 @@ import com.hostelgains.ui.three.Exercise3DView
 import com.hostelgains.ui.viewmodel.WorkoutViewModel
 
 private val QUICK_ISSUES = listOf(
+    "Bro dumbbells are too heavy",
+    "I'm not feeling pushups today",
+    "Make it easier, I'm tired",
     "Swap squats for leg press",
     "Add 3 sets of hammer curls",
-    "Dumbbell only today",
-    "Shorten workout to 30 mins",
-    "No lat pulldown machine today",
-    "Wrist hurts on presses"
+    "Shorten workout to 30 mins"
 )
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -123,6 +127,7 @@ fun WorkoutPlanScreen(
     val haptics = LocalHapticFeedback.current
     var prompt by rememberSaveable { mutableStateOf("") }
     var showBuildSelector by rememberSaveable { mutableStateOf(false) }
+    var selectedTab by rememberSaveable { mutableStateOf("routine") }
     val daysState = rememberLazyListState()
     val top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding()
 
@@ -176,315 +181,138 @@ fun WorkoutPlanScreen(
             }
         }
 
-        // ── Active Physique Build Pathway Card ────────────────────────────────
-        item {
-            HgCard(
-                modifier = Modifier
-                    .padding(horizontal = 16.dp)
-                    .fillMaxWidth()
-                    .clickable {
-                        if (profileViewModel != null) {
-                            showBuildSelector = true
-                        }
-                    },
-                containerColor = Surface2,
-                borderColor = Ignite.copy(alpha = 0.45f)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(state.targetBuild.visualBadge, style = MaterialTheme.typography.headlineMedium)
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text(
-                                    state.targetBuild.title,
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = TextHigh
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                StatusPill(state.targetBuild.archetypeTag, color = Ignite)
-                                Spacer(Modifier.width(4.dp))
-                                StatusPill(state.experienceLevel.title, color = Info)
-                                if (state.isAiGeneratedRoutine) {
-                                    Spacer(Modifier.width(4.dp))
-                                    StatusPill("✨ Gemini AI", color = Success)
-                                }
-                            }
-                            Text(
-                                "${state.targetBuild.repRangeSummary} · ${state.targetBuild.targetAesthetic}",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMid,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                    }
-                    if (profileViewModel != null) {
-                        Text(
-                            "Change",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = Ignite
-                        )
-                    }
-                }
-            }
-        }
-
-        // ── AI Generation Live Feedback Card ──────────────────────────────────
-        if (state.isGeneratingAiRoutine) {
-            item {
-                HgCard(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .fillMaxWidth(),
-                    containerColor = Surface2,
-                    borderColor = Ignite
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(vertical = 4.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        CircularProgressIndicator(color = Ignite, modifier = Modifier.size(24.dp))
-                        Spacer(Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                "Gemini 1.5 Flash AI Periodization",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = TextHigh
-                            )
-                            Text(
-                                "Generating 7-day routine tailored for ${state.experienceLevel.title} level & ${state.targetBuild.title}...",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = TextMid
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── AI Generation Error Card ──────────────────────────────────────────
-        if (state.aiGenerationError != null && !state.isGeneratingAiRoutine) {
-            item {
-                HgCard(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .fillMaxWidth(),
-                    containerColor = Surface2,
-                    borderColor = Danger
-                ) {
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Text(
-                            "AI Routine Generation Error",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = Danger
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            state.aiGenerationError!!,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = TextMid
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(onClick = { viewModel.generateGeminiRoutine() }) {
-                                Icon(Icons.Filled.Refresh, contentDescription = null, tint = Ignite, modifier = Modifier.size(16.dp))
-                                Spacer(Modifier.width(4.dp))
-                                Text("Retry with Gemini", color = Ignite)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Gemini Coach Rationale Card ───────────────────────────────────────
-        if (state.coachRationale.isNotBlank()) {
-            item {
-                HgCard(
-                    modifier = Modifier
-                        .padding(horizontal = 16.dp)
-                        .fillMaxWidth(),
-                    containerColor = Surface2,
-                    borderColor = Success.copy(alpha = 0.5f)
-                ) {
-                    Row(verticalAlignment = Alignment.Top) {
-                        Icon(
-                            Icons.Filled.AutoAwesome,
-                            contentDescription = null,
-                            tint = Success,
-                            modifier = Modifier.size(20.dp).padding(top = 2.dp)
-                        )
-                        Spacer(Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                "Gemini Coach Rationale · ${state.experienceLevel.title}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = Success
-                            )
-                            Spacer(Modifier.height(4.dp))
-                            Text(
-                                state.coachRationale,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextHigh
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        // ── Action Bar (Calibrate with Gemini AI) ─────────────────────────────
+        // ── Segmented Pill: "My Routine" / "AI Coach" ────────────────
         item {
             Row(
                 modifier = Modifier
                     .padding(horizontal = 16.dp)
-                    .fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .fillMaxWidth()
+                    .clip(CircleShape)
+                    .background(Surface2)
+                    .padding(4.dp)
             ) {
-                Text(
-                    if (state.isAiGeneratedRoutine) "✨ AI Periodized Routine" else "Baseline Framework",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (state.isAiGeneratedRoutine) Success else TextLow
-                )
-                if (!state.isGeneratingAiRoutine) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(Surface2)
-                            .border(1.dp, Ignite.copy(alpha = 0.4f), RoundedCornerShape(8.dp))
-                            .clickable { viewModel.generateGeminiRoutine() }
-                            .padding(horizontal = 10.dp, vertical = 6.dp)
-                    ) {
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(CircleShape)
+                        .background(if (selectedTab == "routine") Surface1 else Color.Transparent)
+                        .border(
+                            1.dp,
+                            if (selectedTab == "routine") Ignite.copy(alpha = 0.5f) else Color.Transparent,
+                            CircleShape
+                        )
+                        .clickable { selectedTab = "routine" }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "My Routine",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = if (selectedTab == "routine") TextHigh else TextLow
+                    )
+                }
+                Box(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(CircleShape)
+                        .background(if (selectedTab == "coach") Ignite else Color.Transparent)
+                        .clickable { selectedTab = "coach" }
+                        .padding(vertical = 10.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
                             Icons.Filled.AutoAwesome,
                             contentDescription = null,
-                            tint = Ignite,
-                            modifier = Modifier.size(14.dp)
+                            tint = if (selectedTab == "coach") OnIgnite else TextLow,
+                            modifier = Modifier.size(16.dp)
                         )
                         Spacer(Modifier.width(6.dp))
                         Text(
-                            if (state.isAiGeneratedRoutine) "Regenerate with Gemini" else "Calibrate with Gemini AI",
-                            style = MaterialTheme.typography.labelSmall,
+                            "AI Coach",
+                            style = MaterialTheme.typography.labelLarge,
                             fontWeight = FontWeight.Bold,
-                            color = Ignite
+                            color = if (selectedTab == "coach") OnIgnite else TextLow
                         )
                     }
                 }
             }
         }
 
-        // ── Day selector ──────────────────────────────────────────────────────
-        item {
-            LazyRow(
-                state = daysState,
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                itemsIndexed(week, key = { _, d -> d.dayNumber }) { index, day ->
-                    DayPill(
-                        number = day.dayNumber,
-                        label = day.dayName.substringAfter(": ", day.dayName),
-                        selected = index == state.selectedDayIndex,
-                        isRest = day.isActiveRest,
-                        onClick = { viewModel.selectDay(index) }
+        if (selectedTab == "coach") {
+            // ── AI Coach Hero Card ──────────────────────────────────────────
+            item {
+                HgCard(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth(),
+                    containerColor = Surface2,
+                    borderColor = Ignite.copy(alpha = 0.45f)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .size(56.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, Ignite, CircleShape)
+                        ) {
+                            Image(
+                                painter = painterResource(R.drawable.gym_cat),
+                                contentDescription = "Sir Whiskers AI Coach",
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(56.dp)
+                            )
+                        }
+                        Spacer(Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "Sir Whiskers · Gemini AI Coach",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextHigh
+                            )
+                            Spacer(Modifier.height(2.dp))
+                            Text(
+                                if (isPremiumAi) "🟢 Powered by Gemini 1.5 Flash (Direct API)" else "⚠️ AI Key Needed — Tap top bar to connect",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = if (isPremiumAi) Success else Warning
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text(
+                        "Tell me how you feel or what equipment is taken. If dumbbells are too heavy, you're sore, or you need exercise swaps, I will adapt your workout biomechanically without dropping your compound lifts.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextMid
                     )
                 }
             }
-        }
 
-        // ── Day overview ──────────────────────────────────────────────────────
-        item {
-            HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            state.basePlan.dayName.uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = Ignite
-                        )
-                        Spacer(Modifier.height(4.dp))
-                        Text(
-                            state.basePlan.focusArea,
-                            style = MaterialTheme.typography.headlineMedium,
-                            color = TextHigh
-                        )
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    ProgressRing(
-                        progress = if (exercises.isEmpty()) 0f else doneCount / exercises.size.toFloat(),
-                        color = Success,
-                        strokeWidth = 7.dp,
-                        modifier = Modifier.size(68.dp)
-                    ) {
-                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Text("$doneCount/${exercises.size}", style = MaterialTheme.typography.titleSmall, color = TextHigh)
-                            Text("done", style = MaterialTheme.typography.bodySmall, color = TextMid)
-                        }
-                    }
-                }
-                if (state.basePlan.guidanceNotes.isNotBlank()) {
-                    Spacer(Modifier.height(10.dp))
-                    Text(state.basePlan.guidanceNotes, style = MaterialTheme.typography.bodyMedium, color = TextMid)
-                }
-                if (state.adjustedPlan.activeTriggers.isNotEmpty()) {
-                    Spacer(Modifier.height(12.dp))
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        state.adjustedPlan.activeTriggers.forEach { trigger ->
-                            StatusPill(trigger, triggerColor(trigger), maxLines = 2)
-                        }
-                    }
+            // ── Active Rebalance State from Coach ────────────────────────────
+            if (state.rebalanceState.isRebalanced) {
+                item {
+                    CoachRebalanceCard(
+                        isExpanded = state.rebalanceState.isCardExpanded,
+                        onToggleExpanded = { viewModel.toggleCoachCardExpanded() },
+                        skippedExerciseName = state.rebalanceState.skippedExerciseName ?: "exercise",
+                        reason = state.rebalanceState.reason,
+                        coachMessage = state.rebalanceState.coachMessage,
+                        compensations = state.rebalanceState.compensations,
+                        onResetToDefault = { viewModel.resetRebalance() },
+                        isCustomized = state.rebalanceState.isCustomized,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
             }
-        }
 
-        if (state.rebalanceState.isRebalanced) {
-            item {
-                CoachRebalanceCard(
-                    isExpanded = state.rebalanceState.isCardExpanded,
-                    onToggleExpanded = { viewModel.toggleCoachCardExpanded() },
-                    skippedExerciseName = state.rebalanceState.skippedExerciseName ?: "exercise",
-                    reason = state.rebalanceState.reason,
-                    coachMessage = state.rebalanceState.coachMessage,
-                    compensations = state.rebalanceState.compensations,
-                    onResetToDefault = { viewModel.resetRebalance() },
-                    isCustomized = state.rebalanceState.isCustomized,
-                    modifier = Modifier.padding(horizontal = 16.dp)
-                )
-            }
-        }
-
-        // ── AI Workout Customizer prompt ──────────────────────────────────────
-        if (!isRest) {
+            // ── Prompt Input & Suggestion Chips ─────────────────────────────
             item {
                 HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
-                    Text("Customize Today's Workout with AI", style = MaterialTheme.typography.titleMedium, color = TextHigh)
+                    Text("Chat with AI Coach", style = MaterialTheme.typography.titleMedium, color = TextHigh)
                     Spacer(Modifier.height(2.dp))
                     Text(
-                        "Ask your coach to swap, add, or adjust exercises (e.g. 'swap squats for leg press', 'add 3 sets of curls', 'dumbbell only').",
+                        "Ask your coach anything—e.g. 'bro dumbbells are too heavy', 'swap squats for leg press', 'make it easier'.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = TextMid
                     )
@@ -493,7 +321,7 @@ fun WorkoutPlanScreen(
                         HgTextField(
                             value = prompt,
                             onValueChange = { prompt = it },
-                            placeholder = "e.g. Swap squats for leg press",
+                            placeholder = "e.g. Bro dumbbells are too heavy",
                             singleLine = true,
                             maxLines = 1,
                             keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -513,10 +341,12 @@ fun WorkoutPlanScreen(
                                 disabledContentColor = TextLow
                             )
                         ) {
-                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Customize workout")
+                            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send prompt to AI Coach")
                         }
                     }
-                    Spacer(Modifier.height(10.dp))
+                    Spacer(Modifier.height(14.dp))
+                    Text("Tap a quick suggestion:", style = MaterialTheme.typography.labelSmall, color = TextLow)
+                    Spacer(Modifier.height(8.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -527,50 +357,287 @@ fun WorkoutPlanScreen(
                                     .heightIn(min = 36.dp)
                                     .clip(CircleShape)
                                     .background(Surface2)
+                                    .border(1.dp, Outline, CircleShape)
                                     .clickable(role = Role.Button) { submitPrompt(issue) }
-                                    .padding(horizontal = 12.dp),
+                                    .padding(horizontal = 14.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(issue, style = MaterialTheme.typography.labelMedium, color = TextMid)
+                                Text(issue, style = MaterialTheme.typography.labelMedium, color = TextHigh)
                             }
                         }
                     }
                 }
             }
-        }
 
-        item {
-            SectionLabel(
-                text = if (isRest) "Today's recovery" else "Exercises",
-                modifier = Modifier.padding(horizontal = 20.dp)
-            ) {
-                Text("${exercises.size} movements", style = MaterialTheme.typography.bodySmall, color = TextMid)
+            item {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                        .background(Surface2)
+                        .border(1.dp, Ignite.copy(alpha = 0.4f), CircleShape)
+                        .clickable { selectedTab = "routine" }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "← View Updated Routine (${exercises.size} Exercises)",
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = Ignite
+                    )
+                }
             }
-        }
+        } else {
+            // ── "My Routine" Tab Content ────────────────────────────────────
 
-        items(exercises, key = { it.baseExercise.id }, contentType = { "exercise_card" }) { ex ->
-            val skipped = state.rebalanceState.isRebalanced && ex.baseExercise.id == state.rebalanceState.skippedExerciseId
-            val isNextActive = ex.baseExercise.id == firstActiveExerciseId
-            ExerciseCard(
-                exercise = ex,
-                isCompleted = ex.baseExercise.id in state.completedExerciseIds,
-                isSkipped = skipped,
-                isRest = isRest,
-                animatePreview = isNextActive,
-                onToggleCompleted = {
-                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                    viewModel.toggleExerciseCompleted(ex.baseExercise.id)
-                },
-                onSkip = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    viewModel.skipExercise(ex.baseExercise.id)
-                },
-                onView3D = {
-                    haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-                    onNavigateToViewer(ex.baseExercise.id)
-                },
-                modifier = Modifier.padding(horizontal = 16.dp)
-            )
+            // Active Physique Build Pathway Card
+            item {
+                HgCard(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp)
+                        .fillMaxWidth()
+                        .clickable {
+                            if (profileViewModel != null) {
+                                showBuildSelector = true
+                            }
+                        },
+                    containerColor = Surface2,
+                    borderColor = Ignite.copy(alpha = 0.45f)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text(state.targetBuild.visualBadge, style = MaterialTheme.typography.headlineMedium)
+                            Spacer(Modifier.width(10.dp))
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        state.targetBuild.title,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextHigh
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    StatusPill(state.targetBuild.archetypeTag, color = Ignite)
+                                    Spacer(Modifier.width(4.dp))
+                                    StatusPill(state.experienceLevel.title, color = Info)
+                                    if (state.isAiGeneratedRoutine) {
+                                        Spacer(Modifier.width(4.dp))
+                                        StatusPill("✨ Gemini AI", color = Success)
+                                    }
+                                }
+                                Text(
+                                    "${state.targetBuild.repRangeSummary} · ${state.targetBuild.targetAesthetic}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMid,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
+                        if (profileViewModel != null) {
+                            Text(
+                                "Change",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = Ignite
+                            )
+                        }
+                    }
+                }
+            }
+
+            // AI Generation Live Feedback Card
+            if (state.isGeneratingAiRoutine) {
+                item {
+                    HgCard(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp)
+                            .fillMaxWidth(),
+                        containerColor = Surface2,
+                        borderColor = Ignite
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            CircularProgressIndicator(color = Ignite, modifier = Modifier.size(24.dp))
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text(
+                                    "Gemini 1.5 Flash AI Periodization",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextHigh
+                                )
+                                Text(
+                                    "Generating 7-day routine tailored for ${state.experienceLevel.title} level & ${state.targetBuild.title}...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMid
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Day selector
+            item {
+                LazyRow(
+                    state = daysState,
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    itemsIndexed(week, key = { _, d -> d.dayNumber }) { index, day ->
+                        DayPill(
+                            number = day.dayNumber,
+                            label = day.dayName.substringAfter(": ", day.dayName),
+                            selected = index == state.selectedDayIndex,
+                            isRest = day.isActiveRest,
+                            onClick = { viewModel.selectDay(index) }
+                        )
+                    }
+                }
+            }
+
+            // Day overview
+            item {
+                HgCard(modifier = Modifier.padding(horizontal = 16.dp).fillMaxWidth()) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                state.basePlan.dayName.uppercase(),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = Ignite
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                state.basePlan.focusArea,
+                                style = MaterialTheme.typography.headlineMedium,
+                                color = TextHigh
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        ProgressRing(
+                            progress = if (exercises.isEmpty()) 0f else doneCount / exercises.size.toFloat(),
+                            color = Success,
+                            strokeWidth = 7.dp,
+                            modifier = Modifier.size(68.dp)
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text("$doneCount/${exercises.size}", style = MaterialTheme.typography.titleSmall, color = TextHigh)
+                                Text("done", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                            }
+                        }
+                    }
+                    if (state.basePlan.guidanceNotes.isNotBlank()) {
+                        Spacer(Modifier.height(10.dp))
+                        Text(state.basePlan.guidanceNotes, style = MaterialTheme.typography.bodyMedium, color = TextMid)
+                    }
+                    if (state.adjustedPlan.activeTriggers.isNotEmpty()) {
+                        Spacer(Modifier.height(12.dp))
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            state.adjustedPlan.activeTriggers.forEach { trigger ->
+                                StatusPill(trigger, triggerColor(trigger), maxLines = 2)
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (state.rebalanceState.isRebalanced) {
+                item {
+                    CoachRebalanceCard(
+                        isExpanded = state.rebalanceState.isCardExpanded,
+                        onToggleExpanded = { viewModel.toggleCoachCardExpanded() },
+                        skippedExerciseName = state.rebalanceState.skippedExerciseName ?: "exercise",
+                        reason = state.rebalanceState.reason,
+                        coachMessage = state.rebalanceState.coachMessage,
+                        compensations = state.rebalanceState.compensations,
+                        onResetToDefault = { viewModel.resetRebalance() },
+                        isCustomized = state.rebalanceState.isCustomized,
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                }
+            }
+
+            item {
+                SectionLabel(
+                    text = if (isRest) "Today's recovery" else "Exercises",
+                    modifier = Modifier.padding(horizontal = 20.dp)
+                ) {
+                    Text("${exercises.size} movements", style = MaterialTheme.typography.bodySmall, color = TextMid)
+                }
+            }
+
+            items(exercises, key = { it.baseExercise.id }, contentType = { "exercise_card" }) { ex ->
+                val skipped = state.rebalanceState.isRebalanced && ex.baseExercise.id == state.rebalanceState.skippedExerciseId
+                val isNextActive = ex.baseExercise.id == firstActiveExerciseId
+                ExerciseCard(
+                    exercise = ex,
+                    isCompleted = ex.baseExercise.id in state.completedExerciseIds,
+                    isSkipped = skipped,
+                    isRest = isRest,
+                    animatePreview = isNextActive,
+                    onToggleCompleted = {
+                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                        viewModel.toggleExerciseCompleted(ex.baseExercise.id)
+                    },
+                    onSkip = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        viewModel.skipExercise(ex.baseExercise.id)
+                    },
+                    onView3D = {
+                        haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        onNavigateToViewer(ex.baseExercise.id)
+                    },
+                    modifier = Modifier.padding(horizontal = 16.dp)
+                )
+            }
+
+            // Button to open AI Coach at bottom of routine
+            item {
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                        .fillMaxWidth()
+                        .clip(CircleShape)
+                        .background(Surface2)
+                        .border(1.dp, Ignite.copy(alpha = 0.5f), CircleShape)
+                        .clickable { selectedTab = "coach" }
+                        .padding(vertical = 14.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            Icons.Filled.AutoAwesome,
+                            contentDescription = null,
+                            tint = Ignite,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Change My Routine with AI Coach",
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextHigh
+                        )
+                    }
+                }
+            }
         }
     }
 }
